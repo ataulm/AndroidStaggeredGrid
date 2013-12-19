@@ -30,13 +30,15 @@ build/
 .gradle
 
 #IntelliJ IDEA
-#.idea
+.idea
 .idea/libraries
 workspace.xml
 tasks.xml
+*.iml
 *.ipr
 *.iws
 out
 
 #Plugins and errata
 mirror/
+

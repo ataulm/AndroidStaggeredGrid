@@ -17,30 +17,23 @@
 
 package com.etsy.android.grid;
 
-import java.util.ArrayList;
-
 import android.content.Context;
 import android.database.DataSetObserver;
 import android.graphics.Rect;
-import android.os.Handler;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.support.v4.util.SparseArrayCompat;
 import android.support.v4.view.MotionEventCompat;
 import android.support.v4.view.ViewCompat;
-import android.support.v4.widget.EdgeEffectCompat;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.view.MotionEvent;
-import android.view.VelocityTracker;
-import android.view.View;
-import android.view.ViewConfiguration;
-import android.view.ViewGroup;
-import android.view.ViewParent;
+import android.view.*;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.ListAdapter;
 import android.widget.Scroller;
+
+import java.util.ArrayList;
 
 /**
  * An extendable implementation of the Android {@link android.widget.ListView}
@@ -59,15 +52,16 @@ import android.widget.Scroller;
  * <p/>
  * Note: we only really extend {@link android.widget.AbsListView} so we can appear to be one of its direct subclasses.
  * However most of the code we need to modify is either 1. hidden or 2. package private
- * So a lot of it's code and some {@link android.widget.AdapterView} code is repeated here
+ * so a lot of it's code and some {@link android.widget.AdapterView} code is repeated here.
+ * <p/>
  * Be careful with this - not everything may be how you expect if you assume this to be
  * a regular old {@link android.widget.ListView}
  */
 public abstract class ExtendableListView extends AbsListView {
 
-    private static final String TAG = "ExtendableListView";
+    private static final String TAG = ExtendableListView.class.getSimpleName();
 
-    private static final boolean DBG = false;
+    private static final boolean DEBUG = false;
 
     private static final int TOUCH_MODE_IDLE = 0;
     private static final int TOUCH_MODE_SCROLLING = 1;
@@ -85,64 +79,64 @@ public abstract class ExtendableListView extends AbsListView {
     // Layout from the saved instance state data
     private static final int LAYOUT_SYNC = 2;
 
-    private int mLayoutMode;
+    private int layoutMode;
 
-    private int mTouchMode;
+    private int touchMode;
 
     // Rectangle used for hit testing children
     // private Rect mTouchFrame;
     // TODO : ItemClick support from AdapterView
 
     // For managing scrolling
-    private VelocityTracker mVelocityTracker = null;
+    private VelocityTracker velocityTracker = null;
 
-    private int mTouchSlop;
-    private int mMaximumVelocity;
-    private int mFlingVelocity;
+    private int touchSlop;
+    private int maximumVelocity;
+    private int flingVelocity;
 
     // TODO : Edge effect handling
     // private EdgeEffectCompat mEdgeGlowTop;
     // private EdgeEffectCompat mEdgeGlowBottom;
 
     // blocker for when we're in a layout pass
-    private boolean mInLayout;
+    private boolean inLayout;
 
-    ListAdapter mAdapter;
+    ListAdapter adapter;
 
-    private int mMotionY;
-    private int mMotionX;
-    private int mMotionCorrection;
-    private int mMotionPosition;
+    private int motionY;
+    private int motionX;
+    private int motionCorrection;
+    private int motionPosition;
 
-    private int mLastY;
+    private int lastY;
 
-    private int mActivePointerId = INVALID_POINTER;
+    private int activePointerId = INVALID_POINTER;
 
-    protected int mFirstPosition;
+    protected int firstPosition;
 
     // are we attached to a window - we shouldn't handle any touch events if we're not!
-    private boolean mIsAttached;
+    private boolean isAttached;
 
     /**
      * When set to true, calls to requestLayout() will not propagate up the parent hierarchy.
      * This is used to layout the children during a layout pass.
      */
-    private boolean mBlockLayoutRequests = false;
+    private boolean blockLayoutRequests = false;
 
     // has our data changed - and should we react to it
-    private boolean mDataChanged;
-    private int mItemCount;
-    private int mOldItemCount;
+    private boolean dataChanged;
+    private int itemCount;
+    private int pldItemCount;
 
-    final boolean[] mIsScrap = new boolean[1];
+    final boolean[] isScrap = new boolean[1];
 
-    private RecycleBin mRecycleBin;
+    private RecycleBin recycleBin;
 
-    private AdapterDataSetObserver mObserver;
-    private int mWidthMeasureSpec;
-    private FlingRunnable mFlingRunnable;
+    private AdapterDataSetObserver observer;
+    private int widthMeasureSpec;
+    private FlingRunnable flingRunnable;
 
-    protected boolean mClipToPadding;
+    protected boolean clipToPadding;
 
     /**
      * A class that represents a fixed view in a list, for example a header at the top
@@ -163,9 +157,8 @@ public abstract class ExtendableListView extends AbsListView {
         public boolean isSelectable;
     }
 
-    private ArrayList<FixedViewInfo> mHeaderViewInfos;
-    private ArrayList<FixedViewInfo> mFooterViewInfos;
-
+    private ArrayList<FixedViewInfo> headerViewInfos;
+    private ArrayList<FixedViewInfo> footerViewInfos;
 
     public ExtendableListView(final Context context, final AttributeSet attrs, final int defStyle) {
         super(context, attrs, defStyle);
@@ -176,20 +169,19 @@ public abstract class ExtendableListView extends AbsListView {
         setFocusableInTouchMode(false);
 
         final ViewConfiguration viewConfiguration = ViewConfiguration.get(context);
-        mTouchSlop = viewConfiguration.getScaledTouchSlop();
-        mMaximumVelocity = viewConfiguration.getScaledMaximumFlingVelocity();
-        mFlingVelocity = viewConfiguration.getScaledMinimumFlingVelocity();
+        touchSlop = viewConfiguration.getScaledTouchSlop();
+        maximumVelocity = viewConfiguration.getScaledMaximumFlingVelocity();
+        flingVelocity = viewConfiguration.getScaledMinimumFlingVelocity();
 
-        mRecycleBin = new RecycleBin();
-        mObserver = new AdapterDataSetObserver();
+        recycleBin = new RecycleBin();
+        observer = new AdapterDataSetObserver();
 
-        mHeaderViewInfos = new ArrayList<FixedViewInfo>();
-        mFooterViewInfos = new ArrayList<FixedViewInfo>();
+        headerViewInfos = new ArrayList<FixedViewInfo>();
+        footerViewInfos = new ArrayList<FixedViewInfo>();
 
         // start our layout mode drawing from the top
-        mLayoutMode = LAYOUT_NORMAL;
+        layoutMode = LAYOUT_NORMAL;
     }
-
 
     // //////////////////////////////////////////////////////////////////////////////////////////
     // MAINTAINING SOME STATE
@@ -199,13 +191,13 @@ public abstract class ExtendableListView extends AbsListView {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
 
-        if (mAdapter != null) {
+        if (adapter != null) {
             // Data may have changed while we were detached. Refresh.
-            mDataChanged = true;
-            mOldItemCount = mItemCount;
-            mItemCount = mAdapter.getCount();
+            dataChanged = true;
+            pldItemCount = itemCount;
+            itemCount = adapter.getCount();
         }
-        mIsAttached = true;
+        isAttached = true;
     }
 
     @Override
@@ -213,13 +205,13 @@ public abstract class ExtendableListView extends AbsListView {
         super.onDetachedFromWindow();
 
         // Detach any view left in the scrap heap
-        mRecycleBin.clear();
+        recycleBin.clear();
 
-        if (mFlingRunnable != null) {
-            removeCallbacks(mFlingRunnable);
+        if (flingRunnable != null) {
+            removeCallbacks(flingRunnable);
         }
 
-        mIsAttached = false;
+        isAttached = false;
     }
 
     @Override
@@ -235,7 +227,7 @@ public abstract class ExtendableListView extends AbsListView {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         if (getChildCount() > 0) {
-            mDataChanged = true;
+            dataChanged = true;
             rememberSyncState();
         }
     }
@@ -246,29 +238,28 @@ public abstract class ExtendableListView extends AbsListView {
 
     @Override
     public ListAdapter getAdapter() {
-        return mAdapter;
+        return adapter;
     }
 
     @Override
     public void setAdapter(final ListAdapter adapter) {
-        if (mAdapter != null) {
-            mAdapter.unregisterDataSetObserver(mObserver);
+        if (this.adapter != null) {
+            this.adapter.unregisterDataSetObserver(observer);
         }
 
         // use a wrapper list adapter if we have a header or footer
-        if (mHeaderViewInfos.size() > 0 || mFooterViewInfos.size() > 0) {
-            mAdapter = new HeaderViewListAdapter(mHeaderViewInfos, mFooterViewInfos, adapter);
-        }
-        else {
-            mAdapter = adapter;
+        if (headerViewInfos.size() > 0 || footerViewInfos.size() > 0) {
+            this.adapter = new HeaderViewListAdapter(headerViewInfos, footerViewInfos, adapter);
+        } else {
+            this.adapter = adapter;
         }
 
-        mDataChanged = true;
-        mItemCount = adapter != null ? adapter.getCount() : 0;
+        dataChanged = true;
+        itemCount = adapter != null ? adapter.getCount() : 0;
 
         if (adapter != null) {
-            adapter.registerDataSetObserver(mObserver);
-            mRecycleBin.setViewTypeCount(adapter.getViewTypeCount());
+            adapter.registerDataSetObserver(observer);
+            recycleBin.setViewTypeCount(adapter.getViewTypeCount());
         }
 
         requestLayout();
@@ -276,7 +267,7 @@ public abstract class ExtendableListView extends AbsListView {
 
     @Override
     public int getCount() {
-        return mItemCount;
+        return itemCount;
     }
 
     // //////////////////////////////////////////////////////////////////////////////////////////
@@ -285,20 +276,22 @@ public abstract class ExtendableListView extends AbsListView {
 
     @Override
     public View getSelectedView() {
-        if (DBG) Log.e(TAG, "getSelectedView() is not supported in ExtendableListView yet");
+        if (DEBUG) {
+            Log.e(TAG, "getSelectedView() is not supported in ExtendableListView yet");
+        }
         return null;
     }
 
     @Override
     public void setSelection(final int position) {
         if (position >= 0) {
-            mLayoutMode = LAYOUT_SYNC;
-            mSpecificTop = getListPaddingTop();
+            layoutMode = LAYOUT_SYNC;
+            specificTop = getListPaddingTop();
 
-            mFirstPosition = 0;
-            if (mNeedSync) {
-                mSyncPosition = position;
-                mSyncRowId = mAdapter.getItemId(position);
+            firstPosition = 0;
+            if (needSync) {
+                syncPosition = position;
+                syncRowId = adapter.getItemId(position);
             }
             requestLayout();
         }
@@ -323,7 +316,7 @@ public abstract class ExtendableListView extends AbsListView {
      */
     public void addHeaderView(View v, Object data, boolean isSelectable) {
 
-        if (mAdapter != null && !(mAdapter instanceof HeaderViewListAdapter)) {
+        if (adapter != null && !(adapter instanceof HeaderViewListAdapter)) {
             throw new IllegalStateException(
                     "Cannot add header view to list -- setAdapter has already been called.");
         }
@@ -332,12 +325,12 @@ public abstract class ExtendableListView extends AbsListView {
         info.view = v;
         info.data = data;
         info.isSelectable = isSelectable;
-        mHeaderViewInfos.add(info);
+        headerViewInfos.add(info);
 
         // in the case of re-adding a header view, or adding one later on,
         // we need to notify the observer
-        if (mAdapter != null && mObserver != null) {
-            mObserver.onChanged();
+        if (adapter != null && observer != null) {
+            observer.onChanged();
         }
     }
 
@@ -357,7 +350,7 @@ public abstract class ExtendableListView extends AbsListView {
     }
 
     public int getHeaderViewsCount() {
-        return mHeaderViewInfos.size();
+        return headerViewInfos.size();
     }
 
     /**
@@ -368,15 +361,15 @@ public abstract class ExtendableListView extends AbsListView {
      * view
      */
     public boolean removeHeaderView(View v) {
-        if (mHeaderViewInfos.size() > 0) {
+        if (headerViewInfos.size() > 0) {
             boolean result = false;
-            if (mAdapter != null && ((HeaderViewListAdapter) mAdapter).removeHeader(v)) {
-                if (mObserver != null) {
-                    mObserver.onChanged();
+            if (adapter != null && ((HeaderViewListAdapter) adapter).removeHeader(v)) {
+                if (observer != null) {
+                    observer.onChanged();
                 }
                 result = true;
             }
-            removeFixedViewInfo(v, mHeaderViewInfos);
+            removeFixedViewInfo(v, headerViewInfos);
             return result;
         }
         return false;
@@ -417,12 +410,12 @@ public abstract class ExtendableListView extends AbsListView {
         info.view = v;
         info.data = data;
         info.isSelectable = isSelectable;
-        mFooterViewInfos.add(info);
+        footerViewInfos.add(info);
 
         // in the case of re-adding a footer view, or adding one later on,
         // we need to notify the observer
-        if (mAdapter != null && mObserver != null) {
-            mObserver.onChanged();
+        if (adapter != null && observer != null) {
+            observer.onChanged();
         }
     }
 
@@ -440,7 +433,7 @@ public abstract class ExtendableListView extends AbsListView {
     }
 
     public int getFooterViewsCount() {
-        return mFooterViewInfos.size();
+        return footerViewInfos.size();
     }
 
     /**
@@ -450,15 +443,15 @@ public abstract class ExtendableListView extends AbsListView {
      * @return true if the view was removed, false if the view was not a footer view
      */
     public boolean removeFooterView(View v) {
-        if (mFooterViewInfos.size() > 0) {
+        if (footerViewInfos.size() > 0) {
             boolean result = false;
-            if (mAdapter != null && ((HeaderViewListAdapter) mAdapter).removeFooter(v)) {
-                if (mObserver != null) {
-                    mObserver.onChanged();
+            if (adapter != null && ((HeaderViewListAdapter) adapter).removeFooter(v)) {
+                if (observer != null) {
+                    observer.onChanged();
                 }
                 result = true;
             }
-            removeFixedViewInfo(v, mFooterViewInfos);
+            removeFixedViewInfo(v, footerViewInfos);
             return result;
         }
         return false;
@@ -471,7 +464,7 @@ public abstract class ExtendableListView extends AbsListView {
     @Override
     public void setClipToPadding(final boolean clipToPadding) {
         super.setClipToPadding(clipToPadding);
-        mClipToPadding = clipToPadding;
+        this.clipToPadding = clipToPadding;
     }
 
     // //////////////////////////////////////////////////////////////////////////////////////////
@@ -483,7 +476,7 @@ public abstract class ExtendableListView extends AbsListView {
      */
     @Override
     public void requestLayout() {
-        if (!mBlockLayoutRequests && !mInLayout) {
+        if (!blockLayoutRequests && !inLayout) {
             super.requestLayout();
         }
     }
@@ -495,7 +488,7 @@ public abstract class ExtendableListView extends AbsListView {
     protected void onLayout(final boolean changed, final int l, final int t, final int r, final int b) {
         // super.onLayout(changed, l, t, r, b); - skipping base AbsListView implementation on purpose
         // haven't set an adapter yet? get to it
-        if (mAdapter == null) {
+        if (adapter == null) {
             return;
         }
 
@@ -504,13 +497,13 @@ public abstract class ExtendableListView extends AbsListView {
             for (int i = 0; i < childCount; i++) {
                 getChildAt(i).forceLayout();
             }
-            mRecycleBin.markChildrenDirty();
+            recycleBin.markChildrenDirty();
         }
 
         // TODO get the height of the view??
-        mInLayout = true;
+        inLayout = true;
         layoutChildren();
-        mInLayout = false;
+        inLayout = false;
     }
 
     /**
@@ -518,14 +511,16 @@ public abstract class ExtendableListView extends AbsListView {
      */
     @Override
     protected void layoutChildren() {
-        if (mBlockLayoutRequests) return;
-        mBlockLayoutRequests = true;
+        if (blockLayoutRequests) {
+            return;
+        }
+        blockLayoutRequests = true;
 
         try {
             super.layoutChildren();
             invalidate();
 
-            if (mAdapter == null) {
+            if (adapter == null) {
                 clearState();
                 return;
             }
@@ -536,11 +531,11 @@ public abstract class ExtendableListView extends AbsListView {
             View oldFirst = null;
 
             // our last state so we keep our position
-            if (mLayoutMode == LAYOUT_NORMAL) {
+            if (layoutMode == LAYOUT_NORMAL) {
                 oldFirst = getChildAt(0);
             }
 
-            boolean dataChanged = mDataChanged;
+            boolean dataChanged = this.dataChanged;
             if (dataChanged) {
                 handleDataChanged();
             }
@@ -548,29 +543,27 @@ public abstract class ExtendableListView extends AbsListView {
             // safety check!
             // Handle the empty set by removing all views that are visible
             // and calling it a day
-            if (mItemCount == 0) {
+            if (itemCount == 0) {
                 clearState();
                 return;
-            }
-            else if (mItemCount != mAdapter.getCount()) {
+            } else if (itemCount != adapter.getCount()) {
                 throw new IllegalStateException("The content of the adapter has changed but "
                         + "ExtendableListView did not receive a notification. Make sure the content of "
                         + "your adapter is not modified from a background thread, but only "
                         + "from the UI thread. [in ExtendableListView(" + getId() + ", " + getClass()
-                        + ") with Adapter(" + mAdapter.getClass() + ")]");
+                        + ") with Adapter(" + adapter.getClass() + ")]");
             }
 
             // Pull all children into the RecycleBin.
             // These views will be reused if possible
-            final int firstPosition = mFirstPosition;
-            final RecycleBin recycleBin = mRecycleBin;
+            final int firstPosition = this.firstPosition;
+            final RecycleBin recycleBin = this.recycleBin;
 
             if (dataChanged) {
                 for (int i = 0; i < childCount; i++) {
                     recycleBin.addScrapView(getChildAt(i), firstPosition + i);
                 }
-            }
-            else {
+            } else {
                 recycleBin.fillActiveViews(childCount, firstPosition);
             }
 
@@ -578,9 +571,9 @@ public abstract class ExtendableListView extends AbsListView {
             detachAllViewsFromParent();
             recycleBin.removeSkippedScrap();
 
-            switch (mLayoutMode) {
+            switch (layoutMode) {
                 case LAYOUT_FORCE_TOP: {
-                    mFirstPosition = 0;
+                    this.firstPosition = 0;
                     resetToTop();
                     adjustViewsUpOrDown();
                     fillFromTop(childrenTop);
@@ -588,19 +581,17 @@ public abstract class ExtendableListView extends AbsListView {
                     break;
                 }
                 case LAYOUT_SYNC: {
-                    fillSpecific(mSyncPosition, mSpecificTop);
+                    fillSpecific(syncPosition, specificTop);
                     break;
                 }
                 case LAYOUT_NORMAL:
                 default: {
                     if (childCount == 0) {
                         fillFromTop(childrenTop);
-                    }
-                    else if (mFirstPosition < mItemCount) {
-                        fillSpecific(mFirstPosition,
+                    } else if (this.firstPosition < itemCount) {
+                        fillSpecific(this.firstPosition,
                                 oldFirst == null ? childrenTop : oldFirst.getTop());
-                    }
-                    else {
+                    } else {
                         fillSpecific(0, childrenTop);
                     }
                     break;
@@ -609,34 +600,35 @@ public abstract class ExtendableListView extends AbsListView {
 
             // Flush any cached views that did not get reused above
             recycleBin.scrapActiveViews();
-            mDataChanged = false;
-            mNeedSync = false;
-            mLayoutMode = LAYOUT_NORMAL;
+            this.dataChanged = false;
+            needSync = false;
+            layoutMode = LAYOUT_NORMAL;
         } finally {
-            mBlockLayoutRequests = false;
+            blockLayoutRequests = false;
         }
     }
-
 
     @Override
     protected void handleDataChanged() {
         super.handleDataChanged();
 
-        final int count = mItemCount;
+        final int count = itemCount;
 
-        if (count > 0 && mNeedSync) {
-            mNeedSync = false;
-            mSyncState = null;
+        if (count > 0 && needSync) {
+            needSync = false;
+            syncState = null;
 
-            mLayoutMode = LAYOUT_SYNC;
-            mSyncPosition = Math.min(Math.max(0, mSyncPosition), count - 1);
-            if (mSyncPosition == 0) mLayoutMode = LAYOUT_FORCE_TOP;
+            layoutMode = LAYOUT_SYNC;
+            syncPosition = Math.min(Math.max(0, syncPosition), count - 1);
+            if (syncPosition == 0) {
+                layoutMode = LAYOUT_FORCE_TOP;
+            }
             return;
         }
 
-        mLayoutMode = LAYOUT_FORCE_TOP;
-        mNeedSync = false;
-        mSyncState = null;
+        layoutMode = LAYOUT_FORCE_TOP;
+        needSync = false;
+        syncState = null;
 
         // TODO : add selection handling here
     }
@@ -658,7 +650,7 @@ public abstract class ExtendableListView extends AbsListView {
         int widthSize = MeasureSpec.getSize(widthMeasureSpec);
         int heightSize = MeasureSpec.getSize(heightMeasureSpec);
         setMeasuredDimension(widthSize, heightSize);
-        mWidthMeasureSpec = widthMeasureSpec;
+        this.widthMeasureSpec = widthMeasureSpec;
     }
 
     // //////////////////////////////////////////////////////////////////////////////////////////
@@ -681,9 +673,11 @@ public abstract class ExtendableListView extends AbsListView {
         }
 
         initVelocityTrackerIfNotExists();
-        mVelocityTracker.addMovement(event);
+        velocityTracker.addMovement(event);
 
-        if (!hasChildren()) return false;
+        if (!hasChildren()) {
+            return false;
+        }
 
         boolean handled;
         final int action = event.getAction() & MotionEventCompat.ACTION_MASK;
@@ -715,12 +709,11 @@ public abstract class ExtendableListView extends AbsListView {
         return handled;
     }
 
-
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
         int action = ev.getAction();
 
-        if (!mIsAttached) {
+        if (!isAttached) {
             // Something isn't right.
             // Since we rely on being attached to get data set change notifications,
             // don't risk doing anything where we might try to resync and find things
@@ -728,33 +721,32 @@ public abstract class ExtendableListView extends AbsListView {
             return false;
         }
 
-
         switch (action & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN: {
-                int touchMode = mTouchMode;
+                int touchMode = this.touchMode;
 
                 // TODO : overscroll
 //                if (touchMode == TOUCH_MODE_OVERFLING || touchMode == TOUCH_MODE_OVERSCROLL) {
-//                    mMotionCorrection = 0;
+//                    motionCorrection = 0;
 //                    return true;
 //                }
 
                 final int x = (int) ev.getX();
                 final int y = (int) ev.getY();
-                mActivePointerId = ev.getPointerId(0);
+                activePointerId = ev.getPointerId(0);
 
                 int motionPosition = findMotionRow(y);
                 if (touchMode != TOUCH_MODE_FLINGING && motionPosition >= 0) {
                     // User clicked on an actual view (and was not stopping a fling).
                     // Remember where the motion event started
-                    mMotionX = x;
-                    mMotionY = y;
-                    mMotionPosition = motionPosition;
-                    mTouchMode = TOUCH_MODE_DOWN;
+                    motionX = x;
+                    motionY = y;
+                    this.motionPosition = motionPosition;
+                    this.touchMode = TOUCH_MODE_DOWN;
                 }
-                mLastY = Integer.MIN_VALUE;
+                lastY = Integer.MIN_VALUE;
                 initOrResetVelocityTracker();
-                mVelocityTracker.addMovement(ev);
+                velocityTracker.addMovement(ev);
                 if (touchMode == TOUCH_MODE_FLINGING) {
                     return true;
                 }
@@ -762,16 +754,16 @@ public abstract class ExtendableListView extends AbsListView {
             }
 
             case MotionEvent.ACTION_MOVE: {
-                switch (mTouchMode) {
+                switch (touchMode) {
                     case TOUCH_MODE_DOWN:
-                        int pointerIndex = ev.findPointerIndex(mActivePointerId);
+                        int pointerIndex = ev.findPointerIndex(activePointerId);
                         if (pointerIndex == -1) {
                             pointerIndex = 0;
-                            mActivePointerId = ev.getPointerId(pointerIndex);
+                            activePointerId = ev.getPointerId(pointerIndex);
                         }
                         final int y = (int) ev.getY(pointerIndex);
                         initVelocityTrackerIfNotExists();
-                        mVelocityTracker.addMovement(ev);
+                        velocityTracker.addMovement(ev);
                         if (startScrollIfNeeded(y)) {
                             return true;
                         }
@@ -782,8 +774,8 @@ public abstract class ExtendableListView extends AbsListView {
 
             case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_UP: {
-                mTouchMode = TOUCH_MODE_IDLE;
-                mActivePointerId = INVALID_POINTER;
+                touchMode = TOUCH_MODE_IDLE;
+                activePointerId = INVALID_POINTER;
                 recycleVelocityTracker();
                 reportScrollStateChange(OnScrollListener.SCROLL_STATE_IDLE);
                 break;
@@ -811,19 +803,19 @@ public abstract class ExtendableListView extends AbsListView {
         final int y = (int) event.getY();
         int motionPosition = pointToPosition(x, y);
 
-        mVelocityTracker.clear();
-        mActivePointerId = MotionEventCompat.getPointerId(event, 0);
+        velocityTracker.clear();
+        activePointerId = MotionEventCompat.getPointerId(event, 0);
 
         // TODO : use the motion position for fling support
         // TODO : support long press!
         // startLongPressCheck();
 
-        if ((mTouchMode != TOUCH_MODE_FLINGING) &&
-                !mDataChanged &&
+        if ((touchMode != TOUCH_MODE_FLINGING) &&
+                !dataChanged &&
                 motionPosition >= 0 &&
                 getAdapter().isEnabled(motionPosition)) {
             // is it a tap or a scroll .. we don't know yet!
-            mTouchMode = TOUCH_MODE_DOWN;
+            touchMode = TOUCH_MODE_DOWN;
 
             // TODO : add handling for a click removed from here
 
@@ -833,37 +825,36 @@ public abstract class ExtendableListView extends AbsListView {
                 // code in ViewRoot to try to find a nearby view to select
                 return false;
             }
-        }
-        else if (mTouchMode == TOUCH_MODE_FLINGING) {
-            mTouchMode = TOUCH_MODE_SCROLLING;
-            mMotionCorrection = 0;
+        } else if (touchMode == TOUCH_MODE_FLINGING) {
+            touchMode = TOUCH_MODE_SCROLLING;
+            motionCorrection = 0;
             motionPosition = findMotionRow(y);
         }
 
-        mMotionX = x;
-        mMotionY = y;
-        mMotionPosition = motionPosition;
-        mLastY = Integer.MIN_VALUE;
+        motionX = x;
+        motionY = y;
+        this.motionPosition = motionPosition;
+        lastY = Integer.MIN_VALUE;
 
         return true;
     }
 
     private boolean onTouchMove(final MotionEvent event) {
-        final int index = MotionEventCompat.findPointerIndex(event, mActivePointerId);
+        final int index = MotionEventCompat.findPointerIndex(event, activePointerId);
         if (index < 0) {
             Log.e(TAG, "onTouchMove could not find pointer with id " +
-                    mActivePointerId + " - did ExtendableListView receive an inconsistent " +
+                    activePointerId + " - did ExtendableListView receive an inconsistent " +
                     "event stream?");
             return false;
         }
         final int y = (int) MotionEventCompat.getY(event, index);
 
         // our data's changed so we need to do a layout before moving any further
-        if (mDataChanged) {
+        if (dataChanged) {
             layoutChildren();
         }
 
-        switch (mTouchMode) {
+        switch (touchMode) {
             case TOUCH_MODE_DOWN:
             case TOUCH_MODE_TAP:
             case TOUCH_MODE_DONE_WAITING:
@@ -880,18 +871,17 @@ public abstract class ExtendableListView extends AbsListView {
         return true;
     }
 
-
     private boolean onTouchCancel(final MotionEvent event) {
-        mTouchMode = TOUCH_MODE_IDLE;
+        touchMode = TOUCH_MODE_IDLE;
         setPressed(false);
         invalidate(); // redraw selector
         recycleVelocityTracker();
-        mActivePointerId = INVALID_POINTER;
+        activePointerId = INVALID_POINTER;
         return true;
     }
 
     private boolean onTouchUp(final MotionEvent event) {
-        switch (mTouchMode) {
+        switch (touchMode) {
             case TOUCH_MODE_DOWN:
             case TOUCH_MODE_TAP:
             case TOUCH_MODE_DONE_WAITING:
@@ -904,7 +894,7 @@ public abstract class ExtendableListView extends AbsListView {
         setPressed(false);
         invalidate(); // redraw selector
         recycleVelocityTracker();
-        mActivePointerId = INVALID_POINTER;
+        activePointerId = INVALID_POINTER;
         return true;
     }
 
@@ -913,19 +903,19 @@ public abstract class ExtendableListView extends AbsListView {
             // 2 - Are we at the top or bottom?
             int top = getFirstChildTop();
             int bottom = getLastChildBottom();
-            final boolean atEdge = mFirstPosition == 0 &&
+            final boolean atEdge = firstPosition == 0 &&
                     top >= getListPaddingTop() &&
-                    mFirstPosition + getChildCount() < mItemCount &&
+                    firstPosition + getChildCount() < itemCount &&
                     bottom <= getHeight() - getListPaddingBottom();
 
             if (!atEdge) {
-                mVelocityTracker.computeCurrentVelocity(1000, mMaximumVelocity);
-                final float velocity = mVelocityTracker.getYVelocity(mActivePointerId);
+                velocityTracker.computeCurrentVelocity(1000, maximumVelocity);
+                final float velocity = velocityTracker.getYVelocity(activePointerId);
 
-                if (Math.abs(velocity) > mFlingVelocity) {
+                if (Math.abs(velocity) > flingVelocity) {
                     startFlingRunnable(velocity);
-                    mTouchMode = TOUCH_MODE_FLINGING;
-                    mMotionY = 0;
+                    touchMode = TOUCH_MODE_FLINGING;
+                    motionY = 0;
                     invalidate();
                     return true;
                 }
@@ -934,7 +924,7 @@ public abstract class ExtendableListView extends AbsListView {
 
         stopFlingRunnable();
         recycleVelocityTracker();
-        mTouchMode = TOUCH_MODE_IDLE;
+        touchMode = TOUCH_MODE_IDLE;
         return true;
     }
 
@@ -945,13 +935,13 @@ public abstract class ExtendableListView extends AbsListView {
 
     private boolean onTouchPointerUp(final MotionEvent event) {
         onSecondaryPointerUp(event);
-        final int x = mMotionX;
-        final int y = mMotionY;
+        final int x = motionX;
+        final int y = motionY;
         final int motionPosition = pointToPosition(x, y);
         if (motionPosition >= 0) {
-            mMotionPosition = motionPosition;
+            this.motionPosition = motionPosition;
         }
-        mLastY = y;
+        lastY = y;
         return true;
     }
 
@@ -960,14 +950,14 @@ public abstract class ExtendableListView extends AbsListView {
                 MotionEventCompat.ACTION_POINTER_INDEX_MASK) >>
                 MotionEventCompat.ACTION_POINTER_INDEX_SHIFT;
         final int pointerId = event.getPointerId(pointerIndex);
-        if (pointerId == mActivePointerId) {
+        if (pointerId == activePointerId) {
             // This was our active pointer going up. Choose a new
             // active pointer and adjust accordingly.
             // TODO: Make this decision more intelligent.
             final int newPointerIndex = pointerIndex == 0 ? 1 : 0;
-            mMotionX = (int) event.getX(newPointerIndex);
-            mMotionY = (int) event.getY(newPointerIndex);
-            mActivePointerId = event.getPointerId(newPointerIndex);
+            motionX = (int) event.getX(newPointerIndex);
+            motionY = (int) event.getY(newPointerIndex);
+            activePointerId = event.getPointerId(newPointerIndex);
             recycleVelocityTracker();
         }
     }
@@ -981,23 +971,22 @@ public abstract class ExtendableListView extends AbsListView {
      * if it's a movement that represents a big enough scroll.
      */
     private boolean startScrollIfNeeded(final int y) {
-        final int deltaY = y - mMotionY;
+        final int deltaY = y - motionY;
         final int distance = Math.abs(deltaY);
         // TODO : Overscroll?
         // final boolean overscroll = mScrollY != 0;
         final boolean overscroll = false;
-        if (overscroll || distance > mTouchSlop) {
+        if (overscroll || distance > touchSlop) {
             if (overscroll) {
-                mMotionCorrection = 0;
-            }
-            else {
-                mTouchMode = TOUCH_MODE_SCROLLING;
-                mMotionCorrection = deltaY > 0 ? mTouchSlop : -mTouchSlop;
+                motionCorrection = 0;
+            } else {
+                touchMode = TOUCH_MODE_SCROLLING;
+                motionCorrection = deltaY > 0 ? touchSlop : -touchSlop;
             }
 
             // TODO : LONG PRESS
             setPressed(false);
-            View motionView = getChildAt(mMotionPosition - mFirstPosition);
+            View motionView = getChildAt(motionPosition - firstPosition);
             if (motionView != null) {
                 motionView.setPressed(false);
             }
@@ -1013,16 +1002,20 @@ public abstract class ExtendableListView extends AbsListView {
     }
 
     private void scrollIfNeeded(final int y) {
-        if (DBG) Log.d(TAG, "scrollIfNeeded y: " + y);
-        final int rawDeltaY = y - mMotionY;
-        final int deltaY = rawDeltaY - mMotionCorrection;
-        int incrementalDeltaY = mLastY != Integer.MIN_VALUE ? y - mLastY : deltaY;
+        if (DEBUG) {
+            Log.d(TAG, "scrollIfNeeded y: " + y);
+        }
+        final int rawDeltaY = y - motionY;
+        final int deltaY = rawDeltaY - motionCorrection;
+        int incrementalDeltaY = lastY != Integer.MIN_VALUE ? y - lastY : deltaY;
 
-        if (mTouchMode == TOUCH_MODE_SCROLLING) {
-            if (DBG) Log.d(TAG, "scrollIfNeeded TOUCH_MODE_SCROLLING");
-            if (y != mLastY) {
+        if (touchMode == TOUCH_MODE_SCROLLING) {
+            if (DEBUG) {
+                Log.d(TAG, "scrollIfNeeded TOUCH_MODE_SCROLLING");
+            }
+            if (y != lastY) {
                 // stop our parent
-                if (Math.abs(rawDeltaY) > mTouchSlop) {
+                if (Math.abs(rawDeltaY) > touchSlop) {
                     final ViewParent parent = getParent();
                     if (parent != null) {
                         parent.requestDisallowInterceptTouchEvent(true);
@@ -1030,10 +1023,9 @@ public abstract class ExtendableListView extends AbsListView {
                 }
 
                 final int motionIndex;
-                if (mMotionPosition >= 0) {
-                    motionIndex = mMotionPosition - mFirstPosition;
-                }
-                else {
+                if (motionPosition >= 0) {
+                    motionIndex = motionPosition - firstPosition;
+                } else {
                     // If we don't have a motion position that we can reliably track,
                     // pick something in the middle to make a best guess at things below.
                     motionIndex = getChildCount() / 2;
@@ -1051,12 +1043,12 @@ public abstract class ExtendableListView extends AbsListView {
                     // Check if the top of the motion view is where it is
                     // supposed to be
                     if (atEdge) {
-                        mTouchMode = TOUCH_MODE_DONE_WAITING;
+                        touchMode = TOUCH_MODE_DONE_WAITING;
                     }
 
-                    mMotionY = y;
+                    motionY = y;
                 }
-                mLastY = y;
+                lastY = y;
             }
 
         }
@@ -1070,7 +1062,7 @@ public abstract class ExtendableListView extends AbsListView {
             for (int i = 0; i < childCount; i++) {
                 View v = getChildAt(i);
                 if (y <= v.getBottom()) {
-                    return mFirstPosition + i;
+                    return firstPosition + i;
                 }
             }
         }
@@ -1085,9 +1077,13 @@ public abstract class ExtendableListView extends AbsListView {
 
     // move our views by deltaY - what's the incrementalDeltaY?
     private boolean moveTheChildren(int deltaY, int incrementalDeltaY) {
-        if (DBG) Log.d(TAG, "moveTheChildren deltaY: " + deltaY + "incrementalDeltaY: " + incrementalDeltaY);
+        if (DEBUG) {
+            Log.d(TAG, "moveTheChildren deltaY: " + deltaY + "incrementalDeltaY: " + incrementalDeltaY);
+        }
         // there's nothing to move!
-        if (!hasChildren()) return true;
+        if (!hasChildren()) {
+            return true;
+        }
 
         final int firstTop = getHighestChildTop();
         final int lastBottom = getLowestChildBottom();
@@ -1097,7 +1093,7 @@ public abstract class ExtendableListView extends AbsListView {
         // there is no effective padding.
         int effectivePaddingTop = 0;
         int effectivePaddingBottom = 0;
-        if (mClipToPadding) {
+        if (clipToPadding) {
             effectivePaddingTop = getListPaddingTop();
             effectivePaddingBottom = getListPaddingBottom();
         }
@@ -1111,12 +1107,11 @@ public abstract class ExtendableListView extends AbsListView {
 
         if (incrementalDeltaY < 0) {
             incrementalDeltaY = Math.max(-(height - 1), incrementalDeltaY);
-        }
-        else {
+        } else {
             incrementalDeltaY = Math.min(height - 1, incrementalDeltaY);
         }
 
-        final int firstPosition = mFirstPosition;
+        final int firstPosition = this.firstPosition;
 
         int maxTop = getListPaddingTop();
         int maxBottom = gridHeight - getListPaddingBottom();
@@ -1124,10 +1119,10 @@ public abstract class ExtendableListView extends AbsListView {
 
         final boolean cannotScrollDown = (firstPosition == 0 &&
                 firstTop >= maxTop && incrementalDeltaY >= 0);
-        final boolean cannotScrollUp = (firstPosition + childCount == mItemCount &&
+        final boolean cannotScrollUp = (firstPosition + childCount == itemCount &&
                 lastBottom <= maxBottom && incrementalDeltaY <= 0);
 
-        if (DBG) {
+        if (DEBUG) {
             Log.d(TAG, "moveTheChildren " +
                     " firstTop " + firstTop +
                     " maxTop " + maxTop +
@@ -1139,69 +1134,72 @@ public abstract class ExtendableListView extends AbsListView {
         }
 
         if (cannotScrollDown) {
-            if (DBG) Log.d(TAG, "moveTheChildren cannotScrollDown " + cannotScrollDown);
+            if (DEBUG) {
+                Log.d(TAG, "moveTheChildren cannotScrollDown " + cannotScrollDown);
+            }
             return incrementalDeltaY != 0;
         }
 
         if (cannotScrollUp) {
-            if (DBG) Log.d(TAG, "moveTheChildren cannotScrollUp " + cannotScrollUp);
+            if (DEBUG) {
+                Log.d(TAG, "moveTheChildren cannotScrollUp " + cannotScrollUp);
+            }
             return incrementalDeltaY != 0;
         }
 
         final boolean isDown = incrementalDeltaY < 0;
 
         final int headerViewsCount = getHeaderViewsCount();
-        final int footerViewsStart = mItemCount - getFooterViewsCount();
+        final int footerViewsStart = itemCount - getFooterViewsCount();
 
         int start = 0;
         int count = 0;
 
         if (isDown) {
             int top = -incrementalDeltaY;
-            if (mClipToPadding) {
+            if (clipToPadding) {
                 top += getListPaddingTop();
             }
             for (int i = 0; i < childCount; i++) {
                 final View child = getChildAt(i);
                 if (child.getBottom() >= top) {
                     break;
-                }
-                else {
+                } else {
                     count++;
                     int position = firstPosition + i;
                     if (position >= headerViewsCount && position < footerViewsStart) {
-                        mRecycleBin.addScrapView(child, position);
+                        recycleBin.addScrapView(child, position);
                     }
                 }
             }
-        }
-        else {
+        } else {
             int bottom = gridHeight - incrementalDeltaY;
-            if (mClipToPadding) {
+            if (clipToPadding) {
                 bottom -= getListPaddingBottom();
             }
             for (int i = childCount - 1; i >= 0; i--) {
                 final View child = getChildAt(i);
                 if (child.getTop() <= bottom) {
                     break;
-                }
-                else {
+                } else {
                     start = i;
                     count++;
                     int position = firstPosition + i;
                     if (position >= headerViewsCount && position < footerViewsStart) {
-                        mRecycleBin.addScrapView(child, position);
+                        recycleBin.addScrapView(child, position);
                     }
                 }
             }
         }
 
-        mBlockLayoutRequests = true;
+        blockLayoutRequests = true;
 
         if (count > 0) {
-            if (DBG) Log.d(TAG, "scrap - detachViewsFromParent start:" + start + " count:" + count);
+            if (DEBUG) {
+                Log.d(TAG, "scrap - detachViewsFromParent start:" + start + " count:" + count);
+            }
             detachViewsFromParent(start, count);
-            mRecycleBin.removeSkippedScrap();
+            recycleBin.removeSkippedScrap();
             onChildrenDetached(start, count);
         }
 
@@ -1214,7 +1212,7 @@ public abstract class ExtendableListView extends AbsListView {
         offsetChildrenTopAndBottom(incrementalDeltaY);
 
         if (isDown) {
-            mFirstPosition += count;
+            this.firstPosition += count;
         }
 
         final int absIncrementalDeltaY = Math.abs(incrementalDeltaY);
@@ -1223,7 +1221,7 @@ public abstract class ExtendableListView extends AbsListView {
         }
 
         // TODO : touch mode selector handling
-        mBlockLayoutRequests = false;
+        blockLayoutRequests = false;
         invokeOnItemScrollListener();
 
         return false;
@@ -1244,13 +1242,12 @@ public abstract class ExtendableListView extends AbsListView {
         final int count = getChildCount();
         if (down) {
             // fill down from the top of the position below our last
-            int position = mFirstPosition + count;
+            int position = firstPosition + count;
             final int startOffset = getChildTop(position);
             fillDown(position, startOffset);
-        }
-        else {
+        } else {
             // fill up from the bottom of the position above our first.
-            int position = mFirstPosition - 1;
+            int position = firstPosition - 1;
             final int startOffset = getChildBottom(position);
             fillUp(position, startOffset);
         }
@@ -1260,23 +1257,24 @@ public abstract class ExtendableListView extends AbsListView {
     protected void adjustViewsAfterFillGap(boolean down) {
         if (down) {
             correctTooHigh(getChildCount());
-        }
-        else {
+        } else {
             correctTooLow(getChildCount());
         }
     }
 
     private View fillDown(int pos, int nextTop) {
-        if (DBG) Log.d(TAG, "fillDown - pos:" + pos + " nextTop:" + nextTop);
+        if (DEBUG) {
+            Log.d(TAG, "fillDown - pos:" + pos + " nextTop:" + nextTop);
+        }
 
         View selectedView = null;
 
         int end = getHeight();
-        if (mClipToPadding) {
+        if (clipToPadding) {
             end -= getListPaddingBottom();
         }
 
-        while ((nextTop < end || hasSpaceDown()) && pos < mItemCount) {
+        while ((nextTop < end || hasSpaceDown()) && pos < itemCount) {
             // TODO : add selection support
             makeAndAddView(pos, nextTop, true, false);
             pos++;
@@ -1286,7 +1284,7 @@ public abstract class ExtendableListView extends AbsListView {
         return selectedView;
     }
 
-    /***
+    /**
      * Override to tell filling flow to continue to fill up as we have space.
      */
     protected boolean hasSpaceDown() {
@@ -1294,24 +1292,28 @@ public abstract class ExtendableListView extends AbsListView {
     }
 
     private View fillUp(int pos, int nextBottom) {
-        if (DBG) Log.d(TAG, "fillUp - position:" + pos + " nextBottom:" + nextBottom);
+        if (DEBUG) {
+            Log.d(TAG, "fillUp - position:" + pos + " nextBottom:" + nextBottom);
+        }
         View selectedView = null;
 
-        int end = mClipToPadding ? getListPaddingTop() : 0;
+        int end = clipToPadding ? getListPaddingTop() : 0;
 
         while ((nextBottom > end || hasSpaceUp()) && pos >= 0) {
             // TODO : add selection support
             makeAndAddView(pos, nextBottom, false, false);
             pos--;
             nextBottom = getNextChildUpsBottom(pos);
-            if (DBG) Log.d(TAG, "fillUp next - position:" + pos + " nextBottom:" + nextBottom);
+            if (DEBUG) {
+                Log.d(TAG, "fillUp next - position:" + pos + " nextBottom:" + nextBottom);
+            }
         }
 
-        mFirstPosition = pos + 1;
+        firstPosition = pos + 1;
         return selectedView;
     }
 
-    /***
+    /**
      * Override to tell filling flow to continue to fill up as we have space.
      */
     protected boolean hasSpaceUp() {
@@ -1319,14 +1321,14 @@ public abstract class ExtendableListView extends AbsListView {
     }
 
     /**
-     * Fills the list from top to bottom, starting with mFirstPosition
+     * Fills the list from top to bottom, starting with firstPosition
      */
     private View fillFromTop(int nextTop) {
-        mFirstPosition = Math.min(mFirstPosition, mItemCount - 1);
-        if (mFirstPosition < 0) {
-            mFirstPosition = 0;
+        firstPosition = Math.min(firstPosition, itemCount - 1);
+        if (firstPosition < 0) {
+            firstPosition = 0;
         }
-        return fillDown(mFirstPosition, nextTop);
+        return fillDown(firstPosition, nextTop);
     }
 
     /**
@@ -1343,7 +1345,7 @@ public abstract class ExtendableListView extends AbsListView {
         boolean tempIsSelected = false; // ain't no body got time for that @ Etsy
         View temp = makeAndAddView(position, top, true, tempIsSelected);
         // Possibly changed again in fillUp if we add rows above this one.
-        mFirstPosition = position;
+        firstPosition = position;
 
         View above;
         View below;
@@ -1362,11 +1364,9 @@ public abstract class ExtendableListView extends AbsListView {
 
         if (tempIsSelected) {
             return temp;
-        }
-        else if (above != null) {
+        } else if (above != null) {
             return above;
-        }
-        else {
+        } else {
             return below;
         }
     }
@@ -1379,9 +1379,9 @@ public abstract class ExtendableListView extends AbsListView {
 
         onChildCreated(position, flowDown);
 
-        if (!mDataChanged) {
+        if (!dataChanged) {
             // Try to use an existing view for this position
-            child = mRecycleBin.getActiveView(position);
+            child = recycleBin.getActiveView(position);
             if (child != null) {
 
                 // Found it -- we're using an existing child
@@ -1392,9 +1392,9 @@ public abstract class ExtendableListView extends AbsListView {
         }
 
         // Make a new view for this position, or convert an unused view if possible
-        child = obtainView(position, mIsScrap);
+        child = obtainView(position, isScrap);
         // This needs to be positioned and measured
-        setupChild(child, position, y, flowDown, selected, mIsScrap[0]);
+        setupChild(child, position, y, flowDown, selected, isScrap[0]);
 
         return child;
     }
@@ -1416,19 +1416,18 @@ public abstract class ExtendableListView extends AbsListView {
                             boolean selected, boolean recycled) {
         final boolean isSelected = false; // TODO : selected && shouldShowSelector();
         final boolean updateChildSelected = isSelected != child.isSelected();
-        final int mode = mTouchMode;
+        final int mode = touchMode;
         final boolean isPressed = mode > TOUCH_MODE_DOWN && mode < TOUCH_MODE_SCROLLING &&
-                mMotionPosition == position;
+                motionPosition == position;
         final boolean updateChildPressed = isPressed != child.isPressed();
         final boolean needToMeasure = !recycled || updateChildSelected || child.isLayoutRequested();
 
-        int itemViewType = mAdapter.getItemViewType(position);
+        int itemViewType = adapter.getItemViewType(position);
 
         LayoutParams layoutParams;
         if (itemViewType == ITEM_VIEW_TYPE_HEADER_OR_FOOTER) {
             layoutParams = generateWrapperLayoutParams(child);
-        }
-        else {
+        } else {
             layoutParams = generateChildLayoutParams(child);
         }
 
@@ -1437,11 +1436,14 @@ public abstract class ExtendableListView extends AbsListView {
 
         if (recycled || (layoutParams.recycledHeaderFooter &&
                 layoutParams.viewType == AdapterView.ITEM_VIEW_TYPE_HEADER_OR_FOOTER)) {
-            if (DBG) Log.d(TAG, "setupChild attachViewToParent position:" + position);
+            if (DEBUG) {
+                Log.d(TAG, "setupChild attachViewToParent position:" + position);
+            }
             attachViewToParent(child, flowDown ? -1 : 0, layoutParams);
-        }
-        else {
-            if (DBG) Log.d(TAG, "setupChild addViewInLayout position:" + position);
+        } else {
+            if (DEBUG) {
+                Log.d(TAG, "setupChild addViewInLayout position:" + position);
+            }
             if (layoutParams.viewType == AdapterView.ITEM_VIEW_TYPE_HEADER_OR_FOOTER) {
                 layoutParams.recycledHeaderFooter = true;
             }
@@ -1457,11 +1459,14 @@ public abstract class ExtendableListView extends AbsListView {
         }
 
         if (needToMeasure) {
-            if (DBG) Log.d(TAG, "setupChild onMeasureChild position:" + position);
+            if (DEBUG) {
+                Log.d(TAG, "setupChild onMeasureChild position:" + position);
+            }
             onMeasureChild(child, layoutParams);
-        }
-        else {
-            if (DBG) Log.d(TAG, "setupChild cleanupLayoutState position:" + position);
+        } else {
+            if (DEBUG) {
+                Log.d(TAG, "setupChild cleanupLayoutState position:" + position);
+            }
             cleanupLayoutState(child);
         }
 
@@ -1469,7 +1474,7 @@ public abstract class ExtendableListView extends AbsListView {
         final int h = child.getMeasuredHeight();
         final int childTop = flowDown ? y : y - h;
 
-        if (DBG) {
+        if (DEBUG) {
             Log.d(TAG, "setupChild position:" + position + " h:" + h + " w:" + w);
         }
 
@@ -1479,8 +1484,7 @@ public abstract class ExtendableListView extends AbsListView {
             final int childRight = childrenLeft + w;
             final int childBottom = childTop + h;
             onLayoutChild(child, position, flowDown, childrenLeft, childTop, childRight, childBottom);
-        }
-        else {
+        } else {
             onOffsetChild(child, position, flowDown, childrenLeft, childTop);
         }
 
@@ -1497,8 +1501,7 @@ public abstract class ExtendableListView extends AbsListView {
         if (childParams != null) {
             if (childParams instanceof LayoutParams) {
                 layoutParams = (LayoutParams) childParams;
-            }
-            else {
+            } else {
                 layoutParams = new LayoutParams(childParams);
             }
         }
@@ -1509,19 +1512,17 @@ public abstract class ExtendableListView extends AbsListView {
         return layoutParams;
     }
 
-
     /**
      * Measures a child view in the list. Should call
      */
     protected void onMeasureChild(final View child, final LayoutParams layoutParams) {
-        int childWidthSpec = ViewGroup.getChildMeasureSpec(mWidthMeasureSpec,
+        int childWidthSpec = ViewGroup.getChildMeasureSpec(widthMeasureSpec,
                 getListPaddingLeft() + getListPaddingRight(), layoutParams.width);
         int lpHeight = layoutParams.height;
         int childHeightSpec;
         if (lpHeight > 0) {
             childHeightSpec = MeasureSpec.makeMeasureSpec(lpHeight, MeasureSpec.EXACTLY);
-        }
-        else {
+        } else {
             childHeightSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
         }
         child.measure(childWidthSpec, childHeightSpec);
@@ -1552,28 +1553,29 @@ public abstract class ExtendableListView extends AbsListView {
         isScrap[0] = false;
         View scrapView;
 
-        scrapView = mRecycleBin.getScrapView(position);
+        scrapView = recycleBin.getScrapView(position);
 
         View child;
         if (scrapView != null) {
-            if (DBG) Log.d(TAG, "getView from scrap position:" + position);
-            child = mAdapter.getView(position, scrapView, this);
+            if (DEBUG) {
+                Log.d(TAG, "getView from scrap position:" + position);
+            }
+            child = adapter.getView(position, scrapView, this);
 
             if (child != scrapView) {
-                mRecycleBin.addScrapView(scrapView, position);
-            }
-            else {
+                recycleBin.addScrapView(scrapView, position);
+            } else {
                 isScrap[0] = true;
             }
-        }
-        else {
-            if (DBG) Log.d(TAG, "getView position:" + position);
-            child = mAdapter.getView(position, null, this);
+        } else {
+            if (DEBUG) {
+                Log.d(TAG, "getView position:" + position);
+            }
+            child = adapter.getView(position, null, this);
         }
 
         return child;
     }
-
 
     /**
      * Check if we have dragged the bottom of the list too high (we have pushed the
@@ -1585,8 +1587,8 @@ public abstract class ExtendableListView extends AbsListView {
     private void correctTooHigh(int childCount) {
         // First see if the last item is visible. If it is not, it is OK for the
         // top of the list to be pushed up.
-        int lastPosition = mFirstPosition + childCount - 1;
-        if (lastPosition == mItemCount - 1 && childCount > 0) {
+        int lastPosition = firstPosition + childCount - 1;
+        if (lastPosition == itemCount - 1 && childCount > 0) {
 
             // ... and its bottom edge
             final int lastBottom = getLowestChildBottom();
@@ -1602,17 +1604,17 @@ public abstract class ExtendableListView extends AbsListView {
 
             // Make sure we are 1) Too high, and 2) Either there are more rows above the
             // first row or the first row is scrolled off the top of the drawable area
-            if (bottomOffset > 0 && (mFirstPosition > 0 || firstTop < getListPaddingTop())) {
-                if (mFirstPosition == 0) {
+            if (bottomOffset > 0 && (firstPosition > 0 || firstTop < getListPaddingTop())) {
+                if (firstPosition == 0) {
                     // Don't pull the top too far down
                     bottomOffset = Math.min(bottomOffset, getListPaddingTop() - firstTop);
                 }
                 // Move everything down
                 offsetChildrenTopAndBottom(bottomOffset);
-                if (mFirstPosition > 0) {
-                    // Fill the gap that was opened above mFirstPosition with more rows, if
+                if (firstPosition > 0) {
+                    // Fill the gap that was opened above firstPosition with more rows, if
                     // possible
-                    int previousPosition = mFirstPosition - 1;
+                    int previousPosition = firstPosition - 1;
                     fillUp(previousPosition, getNextChildUpsBottom(previousPosition));
                     // Close up the remaining gap
                     adjustViewsUpOrDown();
@@ -1632,7 +1634,7 @@ public abstract class ExtendableListView extends AbsListView {
     private void correctTooLow(int childCount) {
         // First see if the first item is visible. If it is not, it is OK for the
         // bottom of the list to be pushed down.
-        if (mFirstPosition == 0 && childCount > 0) {
+        if (firstPosition == 0 && childCount > 0) {
 
             // ... and its top edge
             final int firstTop = getHighestChildTop();
@@ -1648,19 +1650,19 @@ public abstract class ExtendableListView extends AbsListView {
             int topOffset = firstTop - start;
             final int lastBottom = getLowestChildBottom();
 
-            int lastPosition = mFirstPosition + childCount - 1;
+            int lastPosition = firstPosition + childCount - 1;
 
             // Make sure we are 1) Too low, and 2) Either there are more rows below the
             // last row or the last row is scrolled off the bottom of the drawable area
             if (topOffset > 0) {
-                if (lastPosition < mItemCount - 1 || lastBottom > end) {
-                    if (lastPosition == mItemCount - 1) {
+                if (lastPosition < itemCount - 1 || lastBottom > end) {
+                    if (lastPosition == itemCount - 1) {
                         // Don't pull the bottom too far up
                         topOffset = Math.min(topOffset, lastBottom - end);
                     }
                     // Move everything up
                     offsetChildrenTopAndBottom(-topOffset);
-                    if (lastPosition < mItemCount - 1) {
+                    if (lastPosition < itemCount - 1) {
                         // Fill the gap that was opened below the last position with more rows, if
                         // possible
                         int nextPosition = lastPosition + 1;
@@ -1668,8 +1670,7 @@ public abstract class ExtendableListView extends AbsListView {
                         // Close up the remaining gap
                         adjustViewsUpOrDown();
                     }
-                }
-                else if (lastPosition == mItemCount - 1) {
+                } else if (lastPosition == itemCount - 1) {
                     adjustViewsUpOrDown();
                 }
             }
@@ -1745,7 +1746,7 @@ public abstract class ExtendableListView extends AbsListView {
     protected int getChildTop(final int position) {
         int count = getChildCount();
         int paddingTop = 0;
-        if (mClipToPadding) {
+        if (clipToPadding) {
             paddingTop = getListPaddingTop();
         }
         return count > 0 ? getChildAt(count - 1).getBottom() : paddingTop;
@@ -1759,7 +1760,7 @@ public abstract class ExtendableListView extends AbsListView {
     protected int getChildBottom(final int position) {
         int count = getChildCount();
         int paddingBottom = 0;
-        if (mClipToPadding) {
+        if (clipToPadding) {
             paddingBottom = getListPaddingBottom();
         }
         return count > 0 ? getChildAt(0).getTop() : getHeight() - paddingBottom;
@@ -1799,7 +1800,9 @@ public abstract class ExtendableListView extends AbsListView {
     }
 
     protected void offsetChildrenTopAndBottom(int offset) {
-        if (DBG) Log.d(TAG, "offsetChildrenTopAndBottom: " + offset);
+        if (DEBUG) {
+            Log.d(TAG, "offsetChildrenTopAndBottom: " + offset);
+        }
         final int count = getChildCount();
         for (int i = 0; i < count; i++) {
             final View v = getChildAt(i);
@@ -1809,12 +1812,12 @@ public abstract class ExtendableListView extends AbsListView {
 
     @Override
     public int getFirstVisiblePosition() {
-        return Math.max(0, mFirstPosition - getHeaderViewsCount());
+        return Math.max(0, firstPosition - getHeaderViewsCount());
     }
 
     @Override
     public int getLastVisiblePosition() {
-        return Math.min(mFirstPosition + getChildCount() - 1, mAdapter.getCount() - 1);
+        return Math.min(firstPosition + getChildCount() - 1, adapter.getCount() - 1);
     }
 
     // //////////////////////////////////////////////////////////////////////////////////////////
@@ -1822,37 +1825,36 @@ public abstract class ExtendableListView extends AbsListView {
     //
 
     private void initOrResetVelocityTracker() {
-        if (mVelocityTracker == null) {
-            mVelocityTracker = VelocityTracker.obtain();
-        }
-        else {
-            mVelocityTracker.clear();
+        if (velocityTracker == null) {
+            velocityTracker = VelocityTracker.obtain();
+        } else {
+            velocityTracker.clear();
         }
     }
 
     private void initVelocityTrackerIfNotExists() {
-        if (mVelocityTracker == null) {
-            mVelocityTracker = VelocityTracker.obtain();
+        if (velocityTracker == null) {
+            velocityTracker = VelocityTracker.obtain();
         }
     }
 
     private void recycleVelocityTracker() {
-        if (mVelocityTracker != null) {
-            mVelocityTracker.recycle();
-            mVelocityTracker = null;
+        if (velocityTracker != null) {
+            velocityTracker.recycle();
+            velocityTracker = null;
         }
     }
 
     private void startFlingRunnable(final float velocity) {
-        if (mFlingRunnable == null) {
-            mFlingRunnable = new FlingRunnable();
+        if (flingRunnable == null) {
+            flingRunnable = new FlingRunnable();
         }
-        mFlingRunnable.start((int) -velocity);
+        flingRunnable.start((int) -velocity);
     }
 
     private void stopFlingRunnable() {
-        if (mFlingRunnable != null) {
-            mFlingRunnable.endFling();
+        if (flingRunnable != null) {
+            flingRunnable.endFling();
         }
     }
 
@@ -1885,7 +1887,7 @@ public abstract class ExtendableListView extends AbsListView {
             mLastFlingY = initialY;
             mScroller.fling(0, initialY, 0, initialVelocity, 0, Integer.MAX_VALUE, 0, Integer.MAX_VALUE);
 
-            mTouchMode = TOUCH_MODE_FLINGING;
+            touchMode = TOUCH_MODE_FLINGING;
             post(this);
         }
 
@@ -1893,13 +1895,13 @@ public abstract class ExtendableListView extends AbsListView {
             int initialY = distance < 0 ? Integer.MAX_VALUE : 0;
             mLastFlingY = initialY;
             mScroller.startScroll(0, initialY, 0, distance, duration);
-            mTouchMode = TOUCH_MODE_FLINGING;
+            touchMode = TOUCH_MODE_FLINGING;
             post(this);
         }
 
         private void endFling() {
             mLastFlingY = 0;
-            mTouchMode = TOUCH_MODE_IDLE;
+            touchMode = TOUCH_MODE_IDLE;
 
             reportScrollStateChange(OnScrollListener.SCROLL_STATE_IDLE);
             removeCallbacks(this);
@@ -1908,12 +1910,12 @@ public abstract class ExtendableListView extends AbsListView {
         }
 
         public void run() {
-            switch (mTouchMode) {
+            switch (touchMode) {
                 default:
                     return;
 
                 case TOUCH_MODE_FLINGING: {
-                    if (mItemCount == 0 || getChildCount() == 0) {
+                    if (itemCount == 0 || getChildCount() == 0) {
                         endFling();
                         return;
                     }
@@ -1928,15 +1930,14 @@ public abstract class ExtendableListView extends AbsListView {
 
                     // Pretend that each frame of a fling scroll is a touch scroll
                     if (delta > 0) {
-                        // List is moving towards the top. Use first view as mMotionPosition
-                        mMotionPosition = mFirstPosition;
+                        // List is moving towards the top. Use first view as motionPosition
+                        motionPosition = firstPosition;
                         // Don't fling more than 1 screen
                         delta = Math.min(getHeight() - getPaddingBottom() - getPaddingTop() - 1, delta);
-                    }
-                    else {
-                        // List is moving towards the bottom. Use last view as mMotionPosition
+                    } else {
+                        // List is moving towards the bottom. Use last view as motionPosition
                         int offsetToLast = getChildCount() - 1;
-                        mMotionPosition = mFirstPosition + offsetToLast;
+                        motionPosition = firstPosition + offsetToLast;
 
                         // Don't fling more than 1 screen
                         delta = Math.max(-(getHeight() - getPaddingBottom() - getPaddingTop() - 1), delta);
@@ -1948,8 +1949,7 @@ public abstract class ExtendableListView extends AbsListView {
                         invalidate();
                         mLastFlingY = y;
                         post(this);
-                    }
-                    else {
+                    } else {
                         endFling();
                     }
                     break;
@@ -1967,7 +1967,7 @@ public abstract class ExtendableListView extends AbsListView {
      */
     public void notifyTouchMode() {
         // only tell the scroll listener about some things we want it to know
-        switch (mTouchMode) {
+        switch (touchMode) {
             case TOUCH_MODE_SCROLLING:
                 reportScrollStateChange(OnScrollListener.SCROLL_STATE_TOUCH_SCROLL);
                 break;
@@ -1988,8 +1988,8 @@ public abstract class ExtendableListView extends AbsListView {
     }
 
     void reportScrollStateChange(int newState) {
-        if (newState != mTouchMode) {
-            mTouchMode = newState;
+        if (newState != touchMode) {
+            touchMode = newState;
             if (mOnScrollListener != null) {
                 mOnScrollListener.onScrollStateChanged(this, newState);
             }
@@ -1998,10 +1998,9 @@ public abstract class ExtendableListView extends AbsListView {
 
     void invokeOnItemScrollListener() {
         if (mOnScrollListener != null) {
-            mOnScrollListener.onScroll(this, mFirstPosition, getChildCount(), mItemCount);
+            mOnScrollListener.onScroll(this, firstPosition, getChildCount(), itemCount);
         }
     }
-
 
     // //////////////////////////////////////////////////////////////////////////////////////////
     // ADAPTER OBSERVER
@@ -2013,20 +2012,19 @@ public abstract class ExtendableListView extends AbsListView {
 
         @Override
         public void onChanged() {
-            mDataChanged = true;
-            mOldItemCount = mItemCount;
-            mItemCount = getAdapter().getCount();
+            dataChanged = true;
+            pldItemCount = itemCount;
+            itemCount = getAdapter().getCount();
 
-            mRecycleBin.clearTransientStateViews();
+            recycleBin.clearTransientStateViews();
 
             // Detect the case where a cursor that was previously invalidated has
             // been repopulated with new data.
             if (ExtendableListView.this.getAdapter().hasStableIds() && mInstanceState != null
-                    && mOldItemCount == 0 && mItemCount > 0) {
+                    && pldItemCount == 0 && itemCount > 0) {
                 ExtendableListView.this.onRestoreInstanceState(mInstanceState);
                 mInstanceState = null;
-            }
-            else {
+            } else {
                 rememberSyncState();
             }
             requestLayout();
@@ -2034,7 +2032,7 @@ public abstract class ExtendableListView extends AbsListView {
 
         @Override
         public void onInvalidated() {
-            mDataChanged = true;
+            dataChanged = true;
 
             if (ExtendableListView.this.getAdapter().hasStableIds()) {
                 // Remember the current state for the case where our hosting activity is being
@@ -2043,9 +2041,9 @@ public abstract class ExtendableListView extends AbsListView {
             }
 
             // Data is invalid so we should reset our state
-            mOldItemCount = mItemCount;
-            mItemCount = 0;
-            mNeedSync = false;
+            pldItemCount = itemCount;
+            itemCount = 0;
+            needSync = false;
             requestLayout();
         }
 
@@ -2053,7 +2051,6 @@ public abstract class ExtendableListView extends AbsListView {
             mInstanceState = null;
         }
     }
-
 
     // //////////////////////////////////////////////////////////////////////////////////////////
     // LAYOUT PARAMS
@@ -2151,8 +2148,7 @@ public abstract class ExtendableListView extends AbsListView {
                 for (int i = 0; i < scrapCount; i++) {
                     scrap.get(i).forceLayout();
                 }
-            }
-            else {
+            } else {
                 final int typeCount = mViewTypeCount;
                 for (int i = 0; i < typeCount; i++) {
                     final ArrayList<View> scrap = mScrapViews[i];
@@ -2184,8 +2180,7 @@ public abstract class ExtendableListView extends AbsListView {
                 for (int i = 0; i < scrapCount; i++) {
                     removeDetachedView(scrap.remove(scrapCount - 1 - i), false);
                 }
-            }
-            else {
+            } else {
                 final int typeCount = mViewTypeCount;
                 for (int i = 0; i < typeCount; i++) {
                     final ArrayList<View> scrap = mScrapViews[i];
@@ -2272,9 +2267,8 @@ public abstract class ExtendableListView extends AbsListView {
         View getScrapView(int position) {
             if (mViewTypeCount == 1) {
                 return retrieveFromScrap(mCurrentScrap, position);
-            }
-            else {
-                int whichScrap = mAdapter.getItemViewType(position);
+            } else {
+                int whichScrap = adapter.getItemViewType(position);
                 if (whichScrap >= 0 && whichScrap < mScrapViews.length) {
                     return retrieveFromScrap(mScrapViews[whichScrap], position);
                 }
@@ -2288,7 +2282,9 @@ public abstract class ExtendableListView extends AbsListView {
          * @param scrap The view to add
          */
         void addScrapView(View scrap, int position) {
-            if (DBG) Log.d(TAG, "addScrapView position = " + position);
+            if (DEBUG) {
+                Log.d(TAG, "addScrapView position = " + position);
+            }
 
             LayoutParams lp = (LayoutParams) scrap.getLayoutParams();
             if (lp == null) {
@@ -2319,8 +2315,7 @@ public abstract class ExtendableListView extends AbsListView {
 
             if (mViewTypeCount == 1) {
                 mCurrentScrap.add(scrap);
-            }
-            else {
+            } else {
                 mScrapViews[viewType].add(scrap);
             }
         }
@@ -2423,8 +2418,7 @@ public abstract class ExtendableListView extends AbsListView {
                 for (int i = 0; i < scrapCount; i++) {
                     scrap.get(i).setDrawingCacheBackgroundColor(color);
                 }
-            }
-            else {
+            } else {
                 final int typeCount = mViewTypeCount;
                 for (int i = 0; i < typeCount; i++) {
                     final ArrayList<View> scrap = mScrapViews[i];
@@ -2458,8 +2452,7 @@ public abstract class ExtendableListView extends AbsListView {
                 }
             }
             return scrapViews.remove(size - 1);
-        }
-        else {
+        } else {
             return null;
         }
     }
@@ -2469,34 +2462,32 @@ public abstract class ExtendableListView extends AbsListView {
     //
 
     /**
-     * Position from which to start looking for mSyncRowId
+     * Position from which to start looking for syncRowId
      */
-    protected int mSyncPosition;
+    protected int syncPosition;
 
     /**
      * The offset in pixels from the top of the AdapterView to the top
      * of the view to select during the next layout.
      */
-    protected int mSpecificTop;
+    protected int specificTop;
 
     /**
      * Row id to look for when data has changed
      */
-    long mSyncRowId = INVALID_ROW_ID;
+    long syncRowId = INVALID_ROW_ID;
 
     /**
-     * Height of the view when mSyncPosition and mSyncRowId where set
+     * Height of the view when syncPosition and syncRowId where set
      */
-    long mSyncHeight;
+    long syncHeight;
 
     /**
-     * True if we need to sync to mSyncRowId
+     * True if we need to sync to syncRowId
      */
-    boolean mNeedSync = false;
+    private boolean needSync = false;
 
-
-    private ListSavedState mSyncState;
-
+    private ListSavedState syncState;
 
     /**
      * Remember enough information to restore the screen state when the data has
@@ -2504,41 +2495,42 @@ public abstract class ExtendableListView extends AbsListView {
      */
     void rememberSyncState() {
         if (getChildCount() > 0) {
-            mNeedSync = true;
-            mSyncHeight = getHeight();
+            needSync = true;
+            syncHeight = getHeight();
             // Sync the based on the offset of the first view
             View v = getChildAt(0);
             ListAdapter adapter = getAdapter();
-            if (mFirstPosition >= 0 && mFirstPosition < adapter.getCount()) {
-                mSyncRowId = adapter.getItemId(mFirstPosition);
-            }
-            else {
-                mSyncRowId = NO_ID;
+            if (firstPosition >= 0 && firstPosition < adapter.getCount()) {
+                syncRowId = adapter.getItemId(firstPosition);
+            } else {
+                syncRowId = NO_ID;
             }
             if (v != null) {
-                mSpecificTop = v.getTop();
+                specificTop = v.getTop();
             }
-            mSyncPosition = mFirstPosition;
+            syncPosition = firstPosition;
         }
     }
 
     private void clearState() {
         // cleanup headers and footers before removing the views
-        clearRecycledState(mHeaderViewInfos);
-        clearRecycledState(mFooterViewInfos);
+        clearRecycledState(headerViewInfos);
+        clearRecycledState(footerViewInfos);
 
         removeAllViewsInLayout();
-        mFirstPosition = 0;
-        mDataChanged = false;
-        mRecycleBin.clear();
-        mNeedSync = false;
-        mSyncState = null;
-        mLayoutMode = LAYOUT_NORMAL;
+        firstPosition = 0;
+        dataChanged = false;
+        recycleBin.clear();
+        needSync = false;
+        syncState = null;
+        layoutMode = LAYOUT_NORMAL;
         invalidate();
     }
 
     private void clearRecycledState(ArrayList<FixedViewInfo> infos) {
-        if (infos == null) return;
+        if (infos == null) {
+            return;
+        }
         for (FixedViewInfo info : infos) {
             final View child = info.view;
             final LayoutParams p = (LayoutParams) child.getLayoutParams();
@@ -2607,48 +2599,46 @@ public abstract class ExtendableListView extends AbsListView {
         };
     }
 
-
     @Override
     public Parcelable onSaveInstanceState() {
 
         Parcelable superState = super.onSaveInstanceState();
         ListSavedState ss = new ListSavedState(superState);
 
-        if (mSyncState != null) {
+        if (syncState != null) {
             // Just keep what we last restored.
-            ss.selectedId = mSyncState.selectedId;
-            ss.firstId = mSyncState.firstId;
-            ss.viewTop = mSyncState.viewTop;
-            ss.position = mSyncState.position;
-            ss.height = mSyncState.height;
+            ss.selectedId = syncState.selectedId;
+            ss.firstId = syncState.firstId;
+            ss.viewTop = syncState.viewTop;
+            ss.position = syncState.position;
+            ss.height = syncState.height;
             return ss;
         }
 
-        boolean haveChildren = getChildCount() > 0 && mItemCount > 0;
+        boolean haveChildren = getChildCount() > 0 && itemCount > 0;
         ss.selectedId = getSelectedItemId();
         ss.height = getHeight();
 
         // TODO : sync selection when we handle it
-        if (haveChildren && mFirstPosition > 0) {
+        if (haveChildren && firstPosition > 0) {
             // Remember the position of the first child.
             // We only do this if we are not currently at the top of
             // the list, for two reasons:
             // (1) The list may be in the process of becoming empty, in
-            // which case mItemCount may not be 0, but if we try to
+            // which case itemCount may not be 0, but if we try to
             // ask for any information about position 0 we will crash.
             // (2) Being "at the top" seems like a special case, anyway,
             // and the user wouldn't expect to end up somewhere else when
             // they revisit the list even if its content has changed.
             View v = getChildAt(0);
             ss.viewTop = v.getTop();
-            int firstPos = mFirstPosition;
-            if (firstPos >= mItemCount) {
-                firstPos = mItemCount - 1;
+            int firstPos = firstPosition;
+            if (firstPos >= itemCount) {
+                firstPos = itemCount - 1;
             }
             ss.position = firstPos;
-            ss.firstId = mAdapter.getItemId(firstPos);
-        }
-        else {
+            ss.firstId = adapter.getItemId(firstPos);
+        } else {
             ss.viewTop = 0;
             ss.firstId = INVALID_POSITION;
             ss.position = 0;
@@ -2661,16 +2651,16 @@ public abstract class ExtendableListView extends AbsListView {
     public void onRestoreInstanceState(Parcelable state) {
         ListSavedState ss = (ListSavedState) state;
         super.onRestoreInstanceState(ss.getSuperState());
-        mDataChanged = true;
+        dataChanged = true;
 
-        mSyncHeight = ss.height;
+        syncHeight = ss.height;
 
         if (ss.firstId >= 0) {
-            mNeedSync = true;
-            mSyncState = ss;
-            mSyncRowId = ss.firstId;
-            mSyncPosition = ss.position;
-            mSpecificTop = ss.viewTop;
+            needSync = true;
+            syncState = ss;
+            syncRowId = ss.firstId;
+            syncPosition = ss.position;
+            specificTop = ss.viewTop;
         }
         requestLayout();
     }

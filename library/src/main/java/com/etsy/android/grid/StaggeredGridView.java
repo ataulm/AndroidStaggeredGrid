@@ -16,8 +16,6 @@
 
 package com.etsy.android.grid;
 
-import java.util.Arrays;
-
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.os.Parcel;
@@ -28,6 +26,8 @@ import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
 
+import java.util.Arrays;
+
 /**
  * A staggered grid view which supports multiple columns with rows of varying sizes.
  * <p/>
@@ -37,32 +37,30 @@ import android.view.ViewGroup;
  */
 public class StaggeredGridView extends ExtendableListView {
 
-    private static final String TAG = "StaggeredGridView";
-    private static final boolean DBG = false;
-
+    private static final String TAG = StaggeredGridView.class.getSimpleName();
+    private static final boolean DEBUG = false;
     private static final int DEFAUlT_COLUMNS_PORTRAIT = 2;
     private static final int DEFAULT_COLUMNS_LANDSCAPE = 3;
 
-    private int mColumnCount;
-    private int mItemMargin;
-    private int mColumnWidth;
-    private boolean mNeedSync;
-
-    private int mColumnCountPortrait = DEFAUlT_COLUMNS_PORTRAIT;
-    private int mColumnCountLandscape = DEFAULT_COLUMNS_LANDSCAPE;
+    private int columnCount;
+    private int itemMargin;
+    private int columnWidth;
+    private boolean needSync;
+    private int columnCountPortrait = DEFAUlT_COLUMNS_PORTRAIT;
+    private int columnCountLandscape = DEFAULT_COLUMNS_LANDSCAPE;
 
     /**
      * A key-value collection where the key is the position and the
      * {@link GridItemRecord} with some info about that position
      * so we can maintain it's position - and reorg on orientation change.
      */
-    private SparseArray<GridItemRecord> mPositionData;
-    private int mGridPaddingLeft;
-    private int mGridPaddingRight;
-    private int mGridPaddingTop;
-    private int mGridPaddingBottom;
+    private SparseArray<GridItemRecord> positionData;
+    private int gridPaddingLeft;
+    private int gridPaddingRight;
+    private int gridPaddingTop;
+    private int gridPaddingBottom;
 
-    /***
+    /**
      * Our grid item state record with {@link Parcelable} implementation
      * so we can persist them across the SGV lifecycle.
      */
@@ -71,7 +69,8 @@ public class StaggeredGridView extends ExtendableListView {
         double heightRatio;
         boolean isHeaderFooter;
 
-        GridItemRecord() { }
+        GridItemRecord() {
+        }
 
         /**
          * Constructor called from {@link #CREATOR}
@@ -119,23 +118,23 @@ public class StaggeredGridView extends ExtendableListView {
     /**
      * The location of the top of each top item added in each column.
      */
-    private int[] mColumnTops;
+    private int[] columnTops;
 
     /**
      * The location of the bottom of each bottom item added in each column.
      */
-    private int[] mColumnBottoms;
+    private int[] columnBottoms;
 
     /**
      * The left location to put items for each column
      */
-    private int[] mColumnLefts;
+    private int[] columnLefts;
 
-    /***
+    /**
      * Tells us the distance we've offset from the top.
      * Can be slightly off on orientation change - TESTING
      */
-    private int mDistanceToTop;
+    private int distanceToTop;
 
     public StaggeredGridView(final Context context) {
         this(context, null);
@@ -152,33 +151,33 @@ public class StaggeredGridView extends ExtendableListView {
             // get the number of columns in portrait and landscape
             TypedArray typedArray = context.obtainStyledAttributes(attrs, R.styleable.StaggeredGridView, defStyle, 0);
 
-            mColumnCountPortrait = typedArray.getInteger(
+            columnCountPortrait = typedArray.getInteger(
                     R.styleable.StaggeredGridView_column_count_portrait,
                     DEFAUlT_COLUMNS_PORTRAIT);
-            mColumnCountLandscape = typedArray.getInteger(
+            columnCountLandscape = typedArray.getInteger(
                     R.styleable.StaggeredGridView_column_count_landscape,
                     DEFAULT_COLUMNS_LANDSCAPE);
 
-            mItemMargin = typedArray.getDimensionPixelSize(
+            itemMargin = typedArray.getDimensionPixelSize(
                     R.styleable.StaggeredGridView_item_margin, 0);
-            mGridPaddingLeft = typedArray.getDimensionPixelSize(
+            gridPaddingLeft = typedArray.getDimensionPixelSize(
                     R.styleable.StaggeredGridView_grid_paddingLeft, 0);
-            mGridPaddingRight = typedArray.getDimensionPixelSize(
+            gridPaddingRight = typedArray.getDimensionPixelSize(
                     R.styleable.StaggeredGridView_grid_paddingRight, 0);
-            mGridPaddingTop = typedArray.getDimensionPixelSize(
+            gridPaddingTop = typedArray.getDimensionPixelSize(
                     R.styleable.StaggeredGridView_grid_paddingTop, 0);
-            mGridPaddingBottom = typedArray.getDimensionPixelSize(
+            gridPaddingBottom = typedArray.getDimensionPixelSize(
                     R.styleable.StaggeredGridView_grid_paddingBottom, 0);
 
             typedArray.recycle();
         }
 
-        mColumnCount = 0; // determined onMeasure
+        columnCount = 0; // determined onMeasure
         // Creating these empty arrays to avoid saving null states
-        mColumnTops = new int[0];
-        mColumnBottoms = new int[0];
-        mColumnLefts = new int[0];
-        mPositionData = new SparseArray<GridItemRecord>();
+        columnTops = new int[0];
+        columnBottoms = new int[0];
+        columnLefts = new int[0];
+        positionData = new SparseArray<GridItemRecord>();
     }
 
     // //////////////////////////////////////////////////////////////////////////////////////////
@@ -187,26 +186,26 @@ public class StaggeredGridView extends ExtendableListView {
 
     // Grid padding is applied to the list item rows but not the header and footer
     public int getRowPaddingLeft() {
-        return getListPaddingLeft() + mGridPaddingLeft;
+        return getListPaddingLeft() + gridPaddingLeft;
     }
 
     public int getRowPaddingRight() {
-        return getListPaddingRight() + mGridPaddingRight;
+        return getListPaddingRight() + gridPaddingRight;
     }
 
     public int getRowPaddingTop() {
-        return getListPaddingTop() + mGridPaddingTop;
+        return getListPaddingTop() + gridPaddingTop;
     }
 
     public int getRowPaddingBottom() {
-        return getListPaddingBottom() + mGridPaddingBottom;
+        return getListPaddingBottom() + gridPaddingBottom;
     }
 
     public void setGridPadding(int left, int top, int right, int bottom) {
-        mGridPaddingLeft = left;
-        mGridPaddingTop = top;
-        mGridPaddingRight = right;
-        mGridPaddingBottom = bottom;
+        gridPaddingLeft = left;
+        gridPaddingTop = top;
+        gridPaddingRight = right;
+        gridPaddingBottom = bottom;
     }
 
     // //////////////////////////////////////////////////////////////////////////////////////////
@@ -217,32 +216,31 @@ public class StaggeredGridView extends ExtendableListView {
     protected void onMeasure(final int widthMeasureSpec, final int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
-        if (mColumnCount <= 0) {
+        if (columnCount <= 0) {
             boolean isLandscape = getMeasuredWidth() > getMeasuredHeight();
-            mColumnCount = isLandscape ? mColumnCountLandscape : mColumnCountPortrait;
+            columnCount = isLandscape ? columnCountLandscape : columnCountPortrait;
         }
 
         // our column width is the width of the listview
         // minus it's padding
         // minus the total items margin
         // divided by the number of columns
-        mColumnWidth = calculateColumnWidth(getMeasuredWidth());
+        columnWidth = calculateColumnWidth(getMeasuredWidth());
 
-        if (mColumnTops == null || mColumnTops.length != mColumnCount) {
-            mColumnTops = new int[mColumnCount];
+        if (columnTops == null || columnTops.length != columnCount) {
+            columnTops = new int[columnCount];
         }
-        if (mColumnBottoms == null || mColumnBottoms.length != mColumnCount) {
-            mColumnBottoms = new int[mColumnCount];
+        if (columnBottoms == null || columnBottoms.length != columnCount) {
+            columnBottoms = new int[columnCount];
         }
-        if (mColumnLefts == null || mColumnLefts.length != mColumnCount) {
-            mColumnLefts = new int[mColumnCount];
+        if (columnLefts == null || columnLefts.length != columnCount) {
+            columnLefts = new int[columnCount];
         }
 
-        for (int i = 0; i < mColumnCount; i++) {
-            mColumnLefts[i] = calculateColumnLeft(i);
+        for (int i = 0; i < columnCount; i++) {
+            columnLefts[i] = calculateColumnLeft(i);
         }
     }
-
 
     @Override
     protected void onMeasureChild(final View child, final LayoutParams layoutParams) {
@@ -253,17 +251,17 @@ public class StaggeredGridView extends ExtendableListView {
                 viewType == ITEM_VIEW_TYPE_IGNORE) {
             // for headers and weird ignored views
             super.onMeasureChild(child, layoutParams);
-        }
-        else {
-            if (DBG) Log.d(TAG, "onMeasureChild BEFORE position:" + position +
-                    " h:" + getMeasuredHeight());
+        } else {
+            if (DEBUG) {
+                Log.d(TAG, "onMeasureChild BEFORE position:" + position +
+                        " h:" + getMeasuredHeight());
+            }
             // measure it to the width of our column.
-            int childWidthSpec = MeasureSpec.makeMeasureSpec(mColumnWidth, MeasureSpec.EXACTLY);
+            int childWidthSpec = MeasureSpec.makeMeasureSpec(columnWidth, MeasureSpec.EXACTLY);
             int childHeightSpec;
             if (layoutParams.height > 0) {
                 childHeightSpec = MeasureSpec.makeMeasureSpec(layoutParams.height, MeasureSpec.EXACTLY);
-            }
-            else {
+            } else {
                 childHeightSpec = MeasureSpec.makeMeasureSpec(LayoutParams.WRAP_CONTENT, MeasureSpec.EXACTLY);
             }
             child.measure(childWidthSpec, childHeightSpec);
@@ -272,32 +270,32 @@ public class StaggeredGridView extends ExtendableListView {
         final int childHeight = getChildHeight(child);
         setPositionHeightRatio(position, childHeight);
 
-        if (DBG) Log.d(TAG, "onMeasureChild AFTER position:" + position +
-                " h:" + childHeight);
+        if (DEBUG) {
+            Log.d(TAG, "onMeasureChild AFTER position:" + position +
+                    " h:" + childHeight);
+        }
     }
 
     public int getColumnWidth() {
-        return mColumnWidth;
+        return columnWidth;
     }
 
     public void resetToTop() {
-        if (mColumnCount > 0) {
+        if (columnCount > 0) {
 
-            if (mColumnTops == null) {
-                mColumnTops = new int[mColumnCount];
+            if (columnTops == null) {
+                columnTops = new int[columnCount];
+            } else {
+                Arrays.fill(columnTops, 0);
             }
-            else {
-                Arrays.fill(mColumnTops, 0);
+            if (columnBottoms == null) {
+                columnBottoms = new int[columnCount];
+            } else {
+                Arrays.fill(columnBottoms, 0);
             }
-            if (mColumnBottoms == null) {
-                mColumnBottoms = new int[mColumnCount];
-            }
-            else {
-                Arrays.fill(mColumnBottoms, 0);
-            }
-            mPositionData.clear();
-            mNeedSync = false;
-            mDistanceToTop = 0;
+            positionData.clear();
+            needSync = false;
+            distanceToTop = 0;
             setSelection(0);
         }
     }
@@ -313,10 +311,11 @@ public class StaggeredGridView extends ExtendableListView {
             // do we already have a column for this position?
             final int column = getChildColumn(position, flowDown);
             setPositionColumn(position, column);
-            if (DBG) Log.d(TAG, "onChildCreated position:" + position +
-                                " is in column:" + column);
-        }
-        else {
+            if (DEBUG) {
+                Log.d(TAG, "onChildCreated position:" + position +
+                        " is in column:" + column);
+            }
+        } else {
             setPositionIsHeaderFooter(position);
         }
     }
@@ -329,16 +328,15 @@ public class StaggeredGridView extends ExtendableListView {
 
     private void preLayoutChildren() {
         // on a major re-layout reset for our next layout pass
-        if (!mNeedSync) {
-            Arrays.fill(mColumnBottoms, 0);
-        }
-        else {
-            mNeedSync = false;
+        if (!needSync) {
+            Arrays.fill(columnBottoms, 0);
+        } else {
+            needSync = false;
         }
         // copy the tops into the bottom
         // since we're going to redo a layout pass that will draw down from
         // the top
-        System.arraycopy(mColumnTops, 0, mColumnBottoms, 0, mColumnCount);
+        System.arraycopy(columnTops, 0, columnBottoms, 0, columnCount);
     }
 
     // NOTE : Views will either be layout out via onLayoutChild
@@ -355,8 +353,7 @@ public class StaggeredGridView extends ExtendableListView {
                                  final int childRight, final int childBottom) {
         if (isHeaderOrFooter(position)) {
             layoutGridHeaderFooter(child, position, flowDown, childrenLeft, childTop, childRight, childBottom);
-        }
-        else {
+        } else {
             layoutGridChild(child, position, flowDown, childrenLeft, childRight);
         }
     }
@@ -370,13 +367,12 @@ public class StaggeredGridView extends ExtendableListView {
         if (flowDown) {
             gridChildTop = getLowestPositionedBottom();
             gridChildBottom = gridChildTop + getChildHeight(child);
-        }
-        else {
+        } else {
             gridChildBottom = getHighestPositionedTop();
             gridChildTop = gridChildBottom - getChildHeight(child);
         }
 
-        for (int i = 0; i < mColumnCount; i++) {
+        for (int i = 0; i < columnCount; i++) {
             updateColumnTopIfNeeded(i, gridChildTop);
             updateColumnBottomIfNeeded(i, gridChildBottom);
         }
@@ -399,18 +395,19 @@ public class StaggeredGridView extends ExtendableListView {
         int verticalMargins = childTopMargin + childBottomMargin;
 
         if (flowDown) {
-            gridChildTop = mColumnBottoms[column]; // the next items top is the last items bottom
+            gridChildTop = columnBottoms[column]; // the next items top is the last items bottom
             gridChildBottom = gridChildTop + (getChildHeight(child) + verticalMargins);
-        }
-        else {
-            gridChildBottom = mColumnTops[column]; // the bottom of the next column up is our top
+        } else {
+            gridChildBottom = columnTops[column]; // the bottom of the next column up is our top
             gridChildTop = gridChildBottom - (getChildHeight(child) + verticalMargins);
         }
 
-        if (DBG) Log.d(TAG, "onLayoutChild position:" + position +
-                " column:" + column +
-                " gridChildTop:" + gridChildTop +
-                " gridChildBottom:" + gridChildBottom);
+        if (DEBUG) {
+            Log.d(TAG, "onLayoutChild position:" + position +
+                    " column:" + column +
+                    " gridChildTop:" + gridChildTop +
+                    " gridChildBottom:" + gridChildBottom);
+        }
 
         // we also know the column of this view so let's stash it in the
         // view's layout params
@@ -435,8 +432,7 @@ public class StaggeredGridView extends ExtendableListView {
         if (isHeaderOrFooter(position)) {
 
             offsetGridHeaderFooter(child, position, flowDown, childrenLeft, childTop);
-        }
-        else {
+        } else {
             offsetGridChild(child, position, flowDown, childrenLeft, childTop);
         }
     }
@@ -450,13 +446,12 @@ public class StaggeredGridView extends ExtendableListView {
         if (flowDown) {
             gridChildTop = getLowestPositionedBottom();
             gridChildBottom = gridChildTop + getChildHeight(child);
-        }
-        else {
+        } else {
             gridChildBottom = getHighestPositionedTop();
             gridChildTop = gridChildBottom - getChildHeight(child);
         }
 
-        for (int i = 0; i < mColumnCount; i++) {
+        for (int i = 0; i < columnCount; i++) {
             updateColumnTopIfNeeded(i, gridChildTop);
             updateColumnBottomIfNeeded(i, gridChildBottom);
         }
@@ -476,19 +471,20 @@ public class StaggeredGridView extends ExtendableListView {
         int verticalMargins = childTopMargin + childBottomMargin;
 
         if (flowDown) {
-            gridChildTop = mColumnBottoms[column]; // the next items top is the last items bottom
+            gridChildTop = columnBottoms[column]; // the next items top is the last items bottom
             gridChildBottom = gridChildTop + (getChildHeight(child) + verticalMargins);
-        }
-        else {
-            gridChildBottom = mColumnTops[column]; // the bottom of the next column up is our top
+        } else {
+            gridChildBottom = columnTops[column]; // the bottom of the next column up is our top
             gridChildTop = gridChildBottom - (getChildHeight(child) + verticalMargins);
         }
 
-        if (DBG) Log.d(TAG, "onOffsetChild position:" + position +
-                " column:" + column +
-                " childTop:" + childTop +
-                " gridChildTop:" + gridChildTop +
-                " gridChildBottom:" + gridChildBottom);
+        if (DEBUG) {
+            Log.d(TAG, "onOffsetChild position:" + position +
+                    " column:" + column +
+                    " childTop:" + childTop +
+                    " gridChildTop:" + gridChildTop +
+                    " gridChildBottom:" + gridChildBottom);
+        }
 
         // we also know the column of this view so let's stash it in the
         // view's layout params
@@ -506,12 +502,12 @@ public class StaggeredGridView extends ExtendableListView {
     }
 
     private int getChildTopMargin(final int position) {
-        boolean isFirstRow = position < (getHeaderViewsCount() + mColumnCount);
-        return isFirstRow ? mItemMargin : 0;
+        boolean isFirstRow = position < (getHeaderViewsCount() + columnCount);
+        return isFirstRow ? itemMargin : 0;
     }
 
     private int getChildBottomMargin() {
-        return mItemMargin;
+        return itemMargin;
     }
 
     @Override
@@ -522,28 +518,27 @@ public class StaggeredGridView extends ExtendableListView {
         if (childParams != null) {
             if (childParams instanceof GridLayoutParams) {
                 layoutParams = (GridLayoutParams) childParams;
-            }
-            else {
+            } else {
                 layoutParams = new GridLayoutParams(childParams);
             }
         }
         if (layoutParams == null) {
             layoutParams = new GridLayoutParams(
-                    mColumnWidth, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    columnWidth, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
 
         return layoutParams;
     }
 
     private void updateColumnTopIfNeeded(int column, int childTop) {
-        if (childTop < mColumnTops[column]) {
-            mColumnTops[column] = childTop;
+        if (childTop < columnTops[column]) {
+            columnTops[column] = childTop;
         }
     }
 
     private void updateColumnBottomIfNeeded(int column, int childBottom) {
-        if (childBottom > mColumnBottoms[column]) {
-            mColumnBottoms[column] = childBottom;
+        if (childBottom > columnBottoms[column]) {
+            columnBottoms[column] = childBottom;
         }
     }
 
@@ -551,10 +546,9 @@ public class StaggeredGridView extends ExtendableListView {
     protected int getChildLeft(final int position) {
         if (isHeaderOrFooter(position)) {
             return super.getChildLeft(position);
-        }
-        else {
+        } else {
             final int column = getPositionColumn(position);
-            return mColumnLefts[column];
+            return columnLefts[column];
         }
     }
 
@@ -562,13 +556,12 @@ public class StaggeredGridView extends ExtendableListView {
     protected int getChildTop(final int position) {
         if (isHeaderOrFooter(position)) {
             return super.getChildTop(position);
-        }
-        else {
+        } else {
             final int column = getPositionColumn(position);
             if (column == -1) {
                 return getHighestPositionedBottom();
             }
-            return mColumnBottoms[column];
+            return columnBottoms[column];
         }
     }
 
@@ -580,8 +573,7 @@ public class StaggeredGridView extends ExtendableListView {
     protected int getNextChildDownsTop(final int position) {
         if (isHeaderOrFooter(position)) {
             return super.getNextChildDownsTop(position);
-        }
-        else {
+        } else {
             return getHighestPositionedBottom();
         }
     }
@@ -590,13 +582,12 @@ public class StaggeredGridView extends ExtendableListView {
     protected int getChildBottom(final int position) {
         if (isHeaderOrFooter(position)) {
             return super.getChildBottom(position);
-        }
-        else {
+        } else {
             final int column = getPositionColumn(position);
             if (column == -1) {
                 return getLowestPositionedTop();
             }
-            return mColumnTops[column];
+            return columnTops[column];
         }
     }
 
@@ -608,15 +599,14 @@ public class StaggeredGridView extends ExtendableListView {
     protected int getNextChildUpsBottom(final int position) {
         if (isHeaderOrFooter(position)) {
             return super.getNextChildUpsBottom(position);
-        }
-        else {
+        } else {
             return getLowestPositionedTop();
         }
     }
 
     @Override
     protected int getLastChildBottom() {
-        final int lastPosition = mFirstPosition + (getChildCount() - 1);
+        final int lastPosition = firstPosition + (getChildCount() - 1);
         if (isHeaderOrFooter(lastPosition)) {
             return super.getLastChildBottom();
         }
@@ -625,7 +615,7 @@ public class StaggeredGridView extends ExtendableListView {
 
     @Override
     protected int getFirstChildTop() {
-        if (isHeaderOrFooter(mFirstPosition)) {
+        if (isHeaderOrFooter(firstPosition)) {
             return super.getFirstChildTop();
         }
         return getLowestPositionedTop();
@@ -633,7 +623,7 @@ public class StaggeredGridView extends ExtendableListView {
 
     @Override
     protected int getHighestChildTop() {
-        if (isHeaderOrFooter(mFirstPosition)) {
+        if (isHeaderOrFooter(firstPosition)) {
             return super.getHighestChildTop();
         }
         return getHighestPositionedTop();
@@ -641,7 +631,7 @@ public class StaggeredGridView extends ExtendableListView {
 
     @Override
     protected int getLowestChildBottom() {
-        final int lastPosition = mFirstPosition + (getChildCount() - 1);
+        final int lastPosition = firstPosition + (getChildCount() - 1);
         if (isHeaderOrFooter(lastPosition)) {
             return super.getLowestChildBottom();
         }
@@ -656,7 +646,9 @@ public class StaggeredGridView extends ExtendableListView {
     }
 
     protected void offsetChildrenTopAndBottom(final int offset, final int column) {
-        if (DBG) Log.d(TAG, "offsetChildrenTopAndBottom: " + offset + " column:" + column);
+        if (DEBUG) {
+            Log.d(TAG, "offsetChildrenTopAndBottom: " + offset + " column:" + column);
+        }
         final int count = getChildCount();
         for (int i = 0; i < count; i++) {
             final View v = getChildAt(i);
@@ -673,17 +665,19 @@ public class StaggeredGridView extends ExtendableListView {
     }
 
     private void offsetDistanceToTop(final int offset) {
-        mDistanceToTop += offset;
-        if (DBG) Log.d(TAG, "offset mDistanceToTop:" + mDistanceToTop);
+        distanceToTop += offset;
+        if (DEBUG) {
+            Log.d(TAG, "offset distanceToTop:" + distanceToTop);
+        }
     }
 
     public int getDistanceToTop() {
-        return mDistanceToTop;
+        return distanceToTop;
     }
 
     private void offsetAllColumnsTopAndBottom(final int offset) {
         if (offset != 0) {
-            for (int i = 0; i < mColumnCount; i++) {
+            for (int i = 0; i < columnCount; i++) {
                 offsetColumnTopAndBottom(offset, i);
             }
         }
@@ -691,8 +685,8 @@ public class StaggeredGridView extends ExtendableListView {
 
     private void offsetColumnTopAndBottom(final int offset, final int column) {
         if (offset != 0) {
-            mColumnTops[column] += offset;
-            mColumnBottoms[column] += offset;
+            columnTops[column] += offset;
+            columnBottoms[column] += offset;
         }
     }
 
@@ -707,7 +701,7 @@ public class StaggeredGridView extends ExtendableListView {
     }
 
     private void alignTops() {
-        if (mFirstPosition == getHeaderViewsCount()) {
+        if (firstPosition == getHeaderViewsCount()) {
             // we're showing all the views before the header views
             int[] nonHeaderTops = getHighestNonHeaderTops();
             // we should now have our non header tops
@@ -728,7 +722,9 @@ public class StaggeredGridView extends ExtendableListView {
             }
 
             // skip the rest.
-            if (isAligned) return;
+            if (isAligned) {
+                return;
+            }
 
             // we've got the highest column - lets align the others
             for (int i = 0; i < nonHeaderTops.length; i++) {
@@ -743,7 +739,7 @@ public class StaggeredGridView extends ExtendableListView {
     }
 
     private int[] getHighestNonHeaderTops() {
-        int[] nonHeaderTops = new int[mColumnCount];
+        int[] nonHeaderTops = new int[columnCount];
         int childCount = getChildCount();
         if (childCount > 0) {
             for (int i = 0; i < childCount; i++) {
@@ -770,8 +766,8 @@ public class StaggeredGridView extends ExtendableListView {
         // go through our remaining views and sync the top and bottom stash.
 
         // Repair the top and bottom column boundaries from the views we still have
-        Arrays.fill(mColumnTops, Integer.MAX_VALUE);
-        Arrays.fill(mColumnBottoms, 0);
+        Arrays.fill(columnTops, Integer.MAX_VALUE);
+        Arrays.fill(columnBottoms, 0);
 
         for (int i = 0; i < getChildCount(); i++) {
             final View child = getChildAt(i);
@@ -783,25 +779,24 @@ public class StaggeredGridView extends ExtendableListView {
                     int column = layoutParams.column;
                     int position = layoutParams.position;
                     final int childTop = child.getTop();
-                    if (childTop < mColumnTops[column]) {
-                        mColumnTops[column] = childTop - getChildTopMargin(position);
+                    if (childTop < columnTops[column]) {
+                        columnTops[column] = childTop - getChildTopMargin(position);
                     }
                     final int childBottom = child.getBottom();
-                    if (childBottom > mColumnBottoms[column]) {
-                        mColumnBottoms[column] = childBottom + getChildBottomMargin();
+                    if (childBottom > columnBottoms[column]) {
+                        columnBottoms[column] = childBottom + getChildBottomMargin();
                     }
-                }
-                else {
+                } else {
                     // the header and footer here
                     final int childTop = child.getTop();
                     final int childBottom = child.getBottom();
 
-                    for (int col = 0; col < mColumnCount; col++) {
-                        if (childTop < mColumnTops[col]) {
-                            mColumnTops[col] = childTop;
+                    for (int col = 0; col < columnCount; col++) {
+                        if (childTop < columnTops[col]) {
+                            columnTops[col] = childTop;
                         }
-                        if (childBottom > mColumnBottoms[col]) {
-                            mColumnBottoms[col] = childBottom;
+                        if (childBottom > columnBottoms[col]) {
+                            columnBottoms[col] = childBottom;
                         }
                     }
 
@@ -812,7 +807,7 @@ public class StaggeredGridView extends ExtendableListView {
 
     @Override
     protected boolean hasSpaceUp() {
-        int end = mClipToPadding ? getRowPaddingTop() : 0;
+        int end = clipToPadding ? getRowPaddingTop() : 0;
         return getLowestPositionedTop() > end;
     }
 
@@ -824,25 +819,25 @@ public class StaggeredGridView extends ExtendableListView {
     protected void onSizeChanged(final int w, final int h, final int oldw, final int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         boolean isLandscape = w > h;
-        int newColumnCount = isLandscape ? mColumnCountLandscape : mColumnCountPortrait;
-        if (mColumnCount != newColumnCount) {
-            mColumnCount = newColumnCount;
+        int newColumnCount = isLandscape ? columnCountLandscape : columnCountPortrait;
+        if (columnCount != newColumnCount) {
+            columnCount = newColumnCount;
 
-            mColumnWidth = calculateColumnWidth(w);
+            columnWidth = calculateColumnWidth(w);
 
-            mColumnTops = new int[mColumnCount];
-            mColumnBottoms = new int[mColumnCount];
-            mColumnLefts = new int[mColumnCount];
+            columnTops = new int[columnCount];
+            columnBottoms = new int[columnCount];
+            columnLefts = new int[columnCount];
 
-            mDistanceToTop = 0;
+            distanceToTop = 0;
 
             // rebuild the column lefts
-            for (int i = 0; i < mColumnCount; i++) {
-                mColumnLefts[i] = calculateColumnLeft(i);
+            for (int i = 0; i < columnCount; i++) {
+                columnLefts[i] = calculateColumnLeft(i);
             }
 
             // if we have data
-            if (getCount() > 0 && mPositionData.size() > 0) {
+            if (getCount() > 0 && positionData.size() > 0) {
                 onColumnSync();
             }
 
@@ -852,43 +847,47 @@ public class StaggeredGridView extends ExtendableListView {
 
     private int calculateColumnWidth(final int gridWidth) {
         final int listPadding = getRowPaddingLeft() + getRowPaddingRight();
-        return (gridWidth - listPadding - mItemMargin * (mColumnCount + 1)) / mColumnCount;
+        return (gridWidth - listPadding - itemMargin * (columnCount + 1)) / columnCount;
     }
 
     private int calculateColumnLeft(final int colIndex) {
-        return getRowPaddingLeft() + mItemMargin + ((mItemMargin + mColumnWidth) * colIndex);
+        return getRowPaddingLeft() + itemMargin + ((itemMargin + columnWidth) * colIndex);
     }
 
-    /***
-     * Our mColumnTops and mColumnBottoms need to be re-built up to the
-     * mSyncPosition - the following layout request will then
+    /**
+     * Our columnTops and columnBottoms need to be re-built up to the
+     * syncPosition - the following layout request will then
      * layout the that position and then fillUp and fillDown appropriately.
      */
     private void onColumnSync() {
         // re-calc tops for new column count!
-        int syncPosition = Math.min(mSyncPosition, getCount() - 1);
+        int syncPosition = Math.min(this.syncPosition, getCount() - 1);
 
         SparseArray<Double> positionHeightRatios = new SparseArray<Double>(syncPosition);
         for (int pos = 0; pos < syncPosition; pos++) {
             // check for weirdness
-            final GridItemRecord rec = mPositionData.get(pos);
-            if (rec == null) break;
+            final GridItemRecord rec = positionData.get(pos);
+            if (rec == null) {
+                break;
+            }
 
             Log.d(TAG, "onColumnSync:" + pos + " ratio:" + rec.heightRatio);
             positionHeightRatios.append(pos, rec.heightRatio);
         }
 
-        mPositionData.clear();
+        positionData.clear();
 
         // re-calc our relative position while at the same time
         // rebuilding our GridItemRecord collection
 
-        if (DBG) Log.d(TAG, "onColumnSync column width:" + mColumnWidth);
+        if (DEBUG) {
+            Log.d(TAG, "onColumnSync column width:" + columnWidth);
+        }
 
         for (int pos = 0; pos < syncPosition; pos++) {
             final GridItemRecord rec = getOrCreateRecord(pos);
             final double heightRatio = positionHeightRatios.get(pos);
-            final int height = (int) (mColumnWidth * heightRatio);
+            final int height = (int) (columnWidth * heightRatio);
             rec.heightRatio = heightRatio;
 
             int top;
@@ -899,30 +898,30 @@ public class StaggeredGridView extends ExtendableListView {
                 top = getLowestPositionedBottom();
                 bottom = top + height;
 
-                for (int i = 0; i < mColumnCount; i++) {
-                    mColumnTops[i] = top;
-                    mColumnBottoms[i] = bottom;
+                for (int i = 0; i < columnCount; i++) {
+                    columnTops[i] = top;
+                    columnBottoms[i] = bottom;
                 }
-            }
-            else {
+            } else {
                 // what's the next column down ?
                 final int column = getHighestPositionedBottomColumn();
                 // the next top is the bottom for that column
-                top = mColumnBottoms[column];
+                top = columnBottoms[column];
                 bottom = top + height + getChildTopMargin(pos) + getChildBottomMargin();
 
-                mColumnTops[column] = top;
-                mColumnBottoms[column] = bottom;
+                columnTops[column] = top;
+                columnBottoms[column] = bottom;
 
                 rec.column = column;
             }
 
-
-            if (DBG) Log.d(TAG, "onColumnSync position:" + pos +
-                                " top:" + top +
-                                " bottom:" + bottom +
-                                " height:" + height +
-                                " heightRatio:" + heightRatio);
+            if (DEBUG) {
+                Log.d(TAG, "onColumnSync position:" + pos +
+                        " top:" + top +
+                        " bottom:" + bottom +
+                        " height:" + height +
+                        " heightRatio:" + heightRatio);
+            }
         }
 
         // our sync position will be displayed in this column
@@ -931,18 +930,17 @@ public class StaggeredGridView extends ExtendableListView {
 
         // we want to offset from height of the sync position
         // minus the offset
-        int syncToBottom = mColumnBottoms[syncColumn];
-        int offset = -syncToBottom + mSpecificTop;
+        int syncToBottom = columnBottoms[syncColumn];
+        int offset = -syncToBottom + specificTop;
         // offset all columns by
         offsetAllColumnsTopAndBottom(offset);
 
         // sync the distance to top
-        mDistanceToTop = -syncToBottom;
+        distanceToTop = -syncToBottom;
 
         // stash our bottoms in our tops - though these will be copied back to the bottoms
-        System.arraycopy(mColumnBottoms, 0, mColumnTops, 0, mColumnCount);
+        System.arraycopy(columnBottoms, 0, columnTops, 0, columnCount);
     }
-
 
     // //////////////////////////////////////////////////////////////////////////////////////////
     // GridItemRecord UTILS
@@ -955,11 +953,13 @@ public class StaggeredGridView extends ExtendableListView {
 
     private void setPositionHeightRatio(final int position, final int height) {
         GridItemRecord rec = getOrCreateRecord(position);
-        rec.heightRatio = (double)  height / (double) mColumnWidth;
-        if (DBG) Log.d(TAG, "position:" + position +
-                            " width:" + mColumnWidth +
-                            " height:" + height +
-                            " heightRatio:" + rec.heightRatio);
+        rec.heightRatio = (double) height / (double) columnWidth;
+        if (DEBUG) {
+            Log.d(TAG, "position:" + position +
+                    " width:" + columnWidth +
+                    " height:" + height +
+                    " heightRatio:" + rec.heightRatio);
+        }
     }
 
     private void setPositionIsHeaderFooter(final int position) {
@@ -968,26 +968,25 @@ public class StaggeredGridView extends ExtendableListView {
     }
 
     private GridItemRecord getOrCreateRecord(final int position) {
-        GridItemRecord rec = mPositionData.get(position, null);
+        GridItemRecord rec = positionData.get(position, null);
         if (rec == null) {
             rec = new GridItemRecord();
-            mPositionData.append(position, rec);
+            positionData.append(position, rec);
         }
         return rec;
     }
 
     private int getPositionColumn(final int position) {
-        GridItemRecord rec = mPositionData.get(position, null);
+        GridItemRecord rec = positionData.get(position, null);
         return rec != null ? rec.column : -1;
     }
-
 
     // //////////////////////////////////////////////////////////////////////////////////////////
     // HELPERS
     //
 
     private boolean isHeaderOrFooter(final int position) {
-        final int viewType = mAdapter.getItemViewType(position);
+        final int viewType = adapter.getItemViewType(position);
         return viewType == ITEM_VIEW_TYPE_HEADER_OR_FOOTER;
     }
 
@@ -996,15 +995,14 @@ public class StaggeredGridView extends ExtendableListView {
         // do we already have a column for this child position?
         int column = getPositionColumn(position);
         // we don't have the column or it no longer fits in our grid
-        final int columnCount = mColumnCount;
+        final int columnCount = this.columnCount;
         if (column < 0 || column >= columnCount) {
             // if we're going down -
             // get the highest positioned (lowest value)
             // column bottom
             if (flowDown) {
                 column = getHighestPositionedBottomColumn();
-            }
-            else {
+            } else {
                 column = getLowestPositionedTopColumn();
 
             }
@@ -1018,15 +1016,15 @@ public class StaggeredGridView extends ExtendableListView {
 
     private int getHighestPositionedBottom() {
         final int column = getHighestPositionedBottomColumn();
-        return mColumnBottoms[column];
+        return columnBottoms[column];
     }
 
     private int getHighestPositionedBottomColumn() {
         int columnFound = 0;
         int highestPositionedBottom = Integer.MAX_VALUE;
         // the highest positioned bottom is the one with the lowest value :D
-        for (int i = 0; i < mColumnCount; i++) {
-            int bottom = mColumnBottoms[i];
+        for (int i = 0; i < columnCount; i++) {
+            int bottom = columnBottoms[i];
             if (bottom < highestPositionedBottom) {
                 highestPositionedBottom = bottom;
                 columnFound = i;
@@ -1037,15 +1035,15 @@ public class StaggeredGridView extends ExtendableListView {
 
     private int getLowestPositionedBottom() {
         final int column = getLowestPositionedBottomColumn();
-        return mColumnBottoms[column];
+        return columnBottoms[column];
     }
 
     private int getLowestPositionedBottomColumn() {
         int columnFound = 0;
         int lowestPositionedBottom = Integer.MIN_VALUE;
         // the lowest positioned bottom is the one with the highest value :D
-        for (int i = 0; i < mColumnCount; i++) {
-            int bottom = mColumnBottoms[i];
+        for (int i = 0; i < columnCount; i++) {
+            int bottom = columnBottoms[i];
             if (bottom > lowestPositionedBottom) {
                 lowestPositionedBottom = bottom;
                 columnFound = i;
@@ -1060,7 +1058,7 @@ public class StaggeredGridView extends ExtendableListView {
 
     private int getLowestPositionedTop() {
         final int column = getLowestPositionedTopColumn();
-        return mColumnTops[column];
+        return columnTops[column];
     }
 
     private int getLowestPositionedTopColumn() {
@@ -1069,8 +1067,8 @@ public class StaggeredGridView extends ExtendableListView {
         // will likely be the lowest positioned Top
         int lowestPositionedTop = Integer.MIN_VALUE;
         // the lowest positioned top is the one with the highest value :D
-        for (int i = 0; i < mColumnCount; i++) {
-            int top = mColumnTops[i];
+        for (int i = 0; i < columnCount; i++) {
+            int top = columnTops[i];
             if (top > lowestPositionedTop) {
                 lowestPositionedTop = top;
                 columnFound = i;
@@ -1081,15 +1079,15 @@ public class StaggeredGridView extends ExtendableListView {
 
     private int getHighestPositionedTop() {
         final int column = getHighestPositionedTopColumn();
-        return mColumnTops[column];
+        return columnTops[column];
     }
 
     private int getHighestPositionedTopColumn() {
         int columnFound = 0;
         int highestPositionedTop = Integer.MAX_VALUE;
         // the highest positioned top is the one with the lowest value :D
-        for (int i = 0; i < mColumnCount; i++) {
-            int top = mColumnTops[i];
+        for (int i = 0; i < columnCount; i++) {
+            int top = columnTops[i];
             if (top < highestPositionedTop) {
                 highestPositionedTop = top;
                 columnFound = i;
@@ -1103,7 +1101,7 @@ public class StaggeredGridView extends ExtendableListView {
     //
 
     /**
-     * Extended LayoutParams to column position and anything else we may been for the grid
+     * Extended LayoutParams to column position and anything else we may been using for the grid
      */
     public static class GridLayoutParams extends LayoutParams {
 
@@ -1148,6 +1146,43 @@ public class StaggeredGridView extends ExtendableListView {
     // //////////////////////////////////////////////////////////////////////////////////////////
     // SAVED STATE
 
+    @Override
+    public Parcelable onSaveInstanceState() {
+        ListSavedState listState = (ListSavedState) super.onSaveInstanceState();
+        GridListSavedState gridState = new GridListSavedState(listState.getSuperState());
+
+        // from the list state
+        gridState.selectedId = listState.selectedId;
+        gridState.firstId = listState.firstId;
+        gridState.viewTop = listState.viewTop;
+        gridState.position = listState.position;
+        gridState.height = listState.height;
+
+        // our state
+        boolean haveChildren = getChildCount() > 0 && getCount() > 0;
+
+        if (haveChildren && firstPosition > 0) {
+            gridState.columnCount = columnCount;
+            gridState.columnTops = columnTops;
+            gridState.positionData = positionData;
+        } else {
+            gridState.columnCount = columnCount >= 0 ? columnCount : 0;
+            gridState.columnTops = new int[gridState.columnCount];
+            gridState.positionData = new SparseArray<Object>();
+        }
+
+        return gridState;
+    }
+
+    @Override
+    public void onRestoreInstanceState(Parcelable state) {
+        GridListSavedState ss = (GridListSavedState) state;
+        columnCount = ss.columnCount;
+        columnTops = ss.columnTops;
+        positionData = ss.positionData;
+        needSync = true;
+        super.onRestoreInstanceState(ss);
+    }
 
     public static class GridListSavedState extends ListSavedState {
         int columnCount;
@@ -1183,8 +1218,7 @@ public class StaggeredGridView extends ExtendableListView {
                     + Integer.toHexString(System.identityHashCode(this)) + "}";
         }
 
-        public static final Creator<GridListSavedState> CREATOR
-                = new Creator<GridListSavedState>() {
+        public static final Creator<GridListSavedState> CREATOR = new Creator<GridListSavedState>() {
             public GridListSavedState createFromParcel(Parcel in) {
                 return new GridListSavedState(in);
             }
@@ -1193,46 +1227,5 @@ public class StaggeredGridView extends ExtendableListView {
                 return new GridListSavedState[size];
             }
         };
-    }
-
-
-    @Override
-    public Parcelable onSaveInstanceState() {
-        ListSavedState listState = (ListSavedState) super.onSaveInstanceState();
-        GridListSavedState ss = new GridListSavedState(listState.getSuperState());
-
-        // from the list state
-        ss.selectedId = listState.selectedId;
-        ss.firstId = listState.firstId;
-        ss.viewTop = listState.viewTop;
-        ss.position = listState.position;
-        ss.height = listState.height;
-
-        // our state
-
-        boolean haveChildren = getChildCount() > 0 && getCount() > 0;
-
-        if (haveChildren && mFirstPosition > 0) {
-            ss.columnCount = mColumnCount;
-            ss.columnTops = mColumnTops;
-            ss.positionData = mPositionData;
-        }
-        else {
-            ss.columnCount = mColumnCount >= 0 ? mColumnCount : 0;
-            ss.columnTops = new int[ss.columnCount];
-            ss.positionData = new SparseArray<Object>();
-        }
-
-        return ss;
-    }
-
-    @Override
-    public void onRestoreInstanceState(Parcelable state) {
-        GridListSavedState ss = (GridListSavedState) state;
-        mColumnCount = ss.columnCount;
-        mColumnTops = ss.columnTops;
-        mPositionData = ss.positionData;
-        mNeedSync = true;
-        super.onRestoreInstanceState(ss);
     }
 }
